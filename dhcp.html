@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DHCP-Reservierungen für pfSense und OPNsense</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF1F0; --surface:#FFFFFF; --sunk:#E2E8E7; --ink:#17232A; --muted:#55656C; --line:#C9D4D3;
+  --accent:#0B6B6B; --accent-ink:#FFFFFF; --accent-soft:#D5E9E8;
+  --new:#2F7D4E; --chg:#2D5EA8; --del:#8A949A; --warn:#8F5500; --err:#B3261E; --warn-bg:#FFF3DC; --err-bg:#FCE9E7;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#11181A; --surface:#182124; --sunk:#0E1416; --ink:#E3EBEC; --muted:#93A3A8; --line:#2B383B;
+    --accent:#4DB3AE; --accent-ink:#06201F; --accent-soft:#1B3534;
+    --new:#6CC18E; --chg:#83A8E4; --del:#6E7A80; --warn:#E3A84C; --err:#F2837A; --warn-bg:#2D2412; --err-bg:#331A18;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11181A; --surface:#182124; --sunk:#0E1416; --ink:#E3EBEC; --muted:#93A3A8; --line:#2B383B;
+  --accent:#4DB3AE; --accent-ink:#06201F; --accent-soft:#1B3534;
+  --new:#6CC18E; --chg:#83A8E4; --del:#6E7A80; --warn:#E3A84C; --err:#F2837A; --warn-bg:#2D2412; --err-bg:#331A18;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 clamp(12px,3vw,28px)}
+header.top{padding:22px 0 14px;display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+header.top h1{font-size:1.45rem;line-height:1.2;margin:0;font-weight:600;letter-spacing:-.01em}
+header.top p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.badge{display:inline-block;font-size:.8rem;font-weight:500;padding:1px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);margin-right:6px;vertical-align:1px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:.45rem .85rem;border-radius:7px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* start */
+#start{padding:8px 0 48px}
+.drop{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:clamp(22px,5vw,48px);display:grid;gap:18px;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:start}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop h2{font-size:1.9rem;line-height:1.15;margin:0 0 10px;font-weight:600;letter-spacing:-.02em;max-width:18ch}
+.drop p{margin:0 0 14px;color:var(--muted);max-width:52ch}
+.drop .how{font-size:.92rem;border-left:3px solid var(--accent);padding:2px 0 2px 14px}
+.drop .how p{margin:0 0 8px;color:var(--ink)}
+.drop .how p span{color:var(--muted)}
+.drop .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.err-box{background:var(--err-bg);color:var(--err);border-radius:8px;padding:10px 14px;margin-top:14px}
+.paste-cfg summary{cursor:pointer;color:var(--muted);font-size:.92rem}
+.paste-cfg textarea{width:100%;min-height:120px;margin:8px 0;font:13px/1.4 var(--mono);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px}
+@media (max-width:760px){.drop{grid-template-columns:1fr}.drop h2{font-size:1.5rem}}
+/* app */
+.overview{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:.3rem .8rem;cursor:pointer;font-size:.92rem}
+.chip b{font-weight:600;margin-left:4px}
+.chip small{color:var(--muted);margin-left:6px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip[aria-pressed="true"] small{color:inherit;opacity:.75}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar .search{flex:1 1 220px;min-width:180px;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:.45rem .7rem}
+.toolbar select, .panel select{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:.42rem .5rem;max-width:100%}
+.chk{display:inline-flex;gap:6px;align-items:center;font-size:.92rem;color:var(--muted);cursor:pointer}
+.spacer{flex:1}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%}
+#tbl{min-width:980px}
+th{text-align:left;font-weight:500;font-size:.85rem;color:var(--muted);padding:.55rem .55rem;border-bottom:1px solid var(--line);background:var(--sunk);white-space:nowrap}
+th[data-sort]{cursor:pointer;user-select:none}
+th[data-sort]:hover{color:var(--ink)}
+th .arr{font-size:.75em;margin-left:3px}
+td{padding:.2rem .35rem;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr td:first-child{box-shadow:inset 4px 0 0 transparent;padding-left:12px}
+tr[data-change="new"] td:first-child{box-shadow:inset 4px 0 0 var(--new)}
+tr[data-change="chg"] td:first-child{box-shadow:inset 4px 0 0 var(--chg)}
+tr[data-change="del"] td:first-child{box-shadow:inset 4px 0 0 var(--del)}
+tr[data-change="del"] .in, tr[data-change="del"] .derived{text-decoration:line-through;color:var(--del)}
+.in{width:100%;border:1px solid transparent;background:transparent;padding:.38rem .45rem;border-radius:5px;min-width:0}
+.in:hover{border-color:var(--line)}
+.in:focus{outline:2px solid var(--accent);outline-offset:-1px;background:var(--surface)}
+.in:disabled{cursor:default}
+.mono{font-family:var(--mono);font-size:.9rem}
+select.in{padding:.36rem .3rem;cursor:pointer}
+.c-st{width:190px}
+.c-mac{width:165px}
+.c-ip{width:140px}
+.c-host{width:170px}
+.c-scope{width:170px}
+.c-be{width:92px;font-size:.85rem;color:var(--muted)}
+.c-act{width:112px;text-align:right}
+.st{font-size:.83rem;line-height:1.3;color:var(--muted)}
+.st .l{display:block}
+.st .l.err{color:var(--err)}
+.st .l.warn{color:var(--warn)}
+.st .l.new{color:var(--new)}
+.st .l.chg{color:var(--chg)}
+.derived{font-size:.88rem;color:var(--muted);padding:0 .45rem}
+.act{border:0;background:none;color:var(--muted);cursor:pointer;padding:.35rem .5rem;border-radius:5px;font-size:.88rem}
+.act:hover{color:var(--err);background:var(--err-bg)}
+tr[data-change="del"] .act:hover{color:var(--accent);background:var(--accent-soft)}
+.empty{padding:34px 20px;text-align:center;color:var(--muted)}
+.empty p{margin:0 0 12px}
+/* panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px clamp(12px,2.5vw,22px);margin-bottom:16px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.panel h2{font-size:1.1rem;margin:0;font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px;flex-wrap:wrap}
+.seg button{border:0;background:var(--surface);padding:.42rem .85rem;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.hint{color:var(--muted);font-size:.9rem;margin:0 0 8px;max-width:75ch}
+.panel textarea{width:100%;min-height:130px;font:13px/1.45 var(--mono);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}
+.row label.f{display:flex;flex-direction:column;gap:3px;font-size:.85rem;color:var(--muted)}
+.row label.f select{color:var(--ink);font-size:.95rem}
+.mapping{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.mapping label{display:flex;flex-direction:column;gap:2px;font-size:.8rem;color:var(--muted);background:var(--sunk);padding:6px 8px;border-radius:7px;max-width:200px}
+.mapping code{font-family:var(--mono);font-size:.8rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#impPrev{min-width:760px;font-size:.9rem}
+#impPrev td{padding:.35rem .5rem}
+#impPrev tr.skip td, #impPrev tr.err td{color:var(--muted)}
+.pill{display:inline-block;border-radius:4px;padding:0 6px;font-size:.8rem;font-weight:500}
+.pill.new{background:var(--accent-soft);color:var(--new)}
+.pill.upd{background:var(--accent-soft);color:var(--chg)}
+.pill.skip{background:var(--sunk);color:var(--muted)}
+.pill.err{background:var(--err-bg);color:var(--err)}
+.note{color:var(--muted);font-size:.83rem}
+.note.err{color:var(--err)}
+.imp-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.prevwrap{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+/* savebar */
+.savebar{position:sticky;bottom:0;z-index:5;margin-top:16px;background:var(--ink);color:var(--bg);border-radius:12px 12px 0 0;padding:12px clamp(12px,2.5vw,20px) calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:0 -6px 24px rgba(0,0,0,.18)}
+.savebar .sum{flex:1 1 240px;font-size:.95rem}
+.savebar .sum .e{color:#FF9C92}
+:root[data-theme="light"] .savebar .sum .e{color:#FF9C92}
+.savebar .btn{background:transparent;color:var(--bg);border-color:rgba(255,255,255,.3)}
+.savebar .btn.primary{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+.savebar details{flex-basis:100%;font-size:.88rem;opacity:.9}
+.savebar details summary{cursor:pointer}
+.savebar details p{margin:6px 0;max-width:80ch}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--accent);color:var(--accent-ink);padding:.6rem 1rem;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:20;max-width:min(90vw,560px);font-size:.93rem}
+.toast[hidden]{display:none}
+footer.foot{color:var(--muted);font-size:.83rem;padding:24px 0 30px}
+@media (prefers-reduced-motion:no-preference){.toast{transition:opacity .2s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>DHCP-Reservierungen</h1>
+      <p id="fileinfo">Feste IP-Zuweisungen in der config.xml von pfSense und OPNsense bearbeiten und in größerer Zahl importieren.</p>
+    </div>
+    <label class="btn" id="reloadBtn" hidden>Andere Datei laden<input type="file" id="file2" accept=".xml,text/xml" hidden></label>
+  </header>
+
+  <section id="start">
+    <div class="drop" id="drop">
+      <div>
+        <h2>config.xml laden und Reservierungen am Stück pflegen</h2>
+        <p>Die Datei wird nur in diesem Browser gelesen und verändert. Es wird nichts hochgeladen.</p>
+        <div class="actions">
+          <label class="btn primary">config.xml auswählen<input type="file" id="file1" accept=".xml,text/xml" hidden></label>
+          <span class="note">oder die Datei hierher ziehen</span>
+        </div>
+        <div id="loadErr" class="err-box" hidden></div>
+        <details class="paste-cfg" style="margin-top:16px">
+          <summary>XML-Inhalt stattdessen einfügen</summary>
+          <textarea id="pasteCfg" spellcheck="false" placeholder="&lt;?xml version=&quot;1.0&quot;?&gt;&#10;&lt;pfsense&gt;…"></textarea>
+          <button class="btn" id="pasteCfgBtn">Eingefügten Inhalt laden</button>
+        </details>
+      </div>
+      <div class="how">
+        <p><strong>pfSense</strong><br><span>Diagnostics › Backup &amp; Restore › Download configuration as XML</span></p>
+        <p><strong>OPNsense</strong><br><span>System › Configuration › Backups › Download configuration</span></p>
+        <p><span>Die Sicherung ohne Verschlüsselung herunterladen, sonst kann sie hier nicht gelesen werden. Unterstützt werden ISC DHCP (pfSense und OPNsense), Kea DHCP und Dnsmasq (OPNsense).</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="app" hidden>
+    <div class="overview" id="overview"></div>
+
+    <section class="panel" id="imp" hidden>
+      <div class="panel-head">
+        <h2>Reservierungen importieren</h2>
+        <button class="btn ghost" id="impClose">Schließen</button>
+      </div>
+      <div class="seg" role="tablist" id="impTabs">
+        <button role="tab" data-src="paste" aria-selected="true">Liste einfügen</button>
+        <button role="tab" data-src="config" aria-selected="false">Aus anderer config.xml</button>
+        <button role="tab" data-src="convert" aria-selected="false" id="tabConvert">Aus anderem DHCP-Dienst</button>
+      </div>
+      <div data-pane="paste">
+        <p class="hint">Eine Zeile pro Gerät, zum Beispiel aus Excel kopiert oder als CSV. Trennzeichen (Tab, Semikolon, Komma, Leerzeichen) und Spalten werden automatisch erkannt. MAC-Adressen dürfen in jeder üblichen Schreibweise vorliegen.</p>
+        <textarea id="impText" spellcheck="false" placeholder="MAC;IP;Hostname;Beschreibung&#10;aa:bb:cc:dd:ee:01;192.168.1.50;drucker-buero;Drucker Büro&#10;AA-BB-CC-DD-EE-02;192.168.1.51;nas;Synology"></textarea>
+        <div class="row"><label class="btn">CSV- oder Textdatei wählen<input type="file" id="impFile" accept=".csv,.txt,.tsv,text/*" hidden></label></div>
+        <div class="mapping" id="impMap"></div>
+      </div>
+      <div data-pane="config" hidden>
+        <p class="hint">Übernimmt die Reservierungen aus einer zweiten Konfiguration, etwa beim Umzug von pfSense auf OPNsense oder zwischen zwei Standorten.</p>
+        <div class="row">
+          <label class="btn">Zweite config.xml wählen<input type="file" id="impCfg" accept=".xml,text/xml" hidden></label>
+          <label class="f" id="impCfgBeWrap" hidden>Quelle in dieser Datei<select id="impCfgBe"></select></label>
+          <span class="note" id="impCfgInfo"></span>
+        </div>
+      </div>
+      <div data-pane="convert" hidden>
+        <p class="hint">Kopiert Reservierungen innerhalb dieser Datei von einem DHCP-Dienst in einen anderen, etwa von ISC DHCP nach Kea oder Dnsmasq.</p>
+        <div class="row">
+          <label class="f">Quelle<select id="impConvSrc"></select></label>
+          <label class="chk"><input type="checkbox" id="impConvDel"> Einträge in der Quelle danach entfernen</label>
+        </div>
+      </div>
+      <div class="row">
+        <label class="f">Ziel<select id="impTarget"></select></label>
+        <label class="f" id="impScopeWrap">Interface oder Subnetz<select id="impScope"></select></label>
+        <label class="f">Wenn die MAC-Adresse schon eingetragen ist<select id="impMode"><option value="update">vorhandenen Eintrag aktualisieren</option><option value="skip">Zeile überspringen</option></select></label>
+      </div>
+      <div class="prevwrap" id="impPrevWrap" hidden><table id="impPrev"></table></div>
+      <div class="imp-actions">
+        <span class="note" id="impSum"></span>
+        <button class="btn primary" id="impApply" disabled>Übernehmen</button>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <input type="search" class="search" id="q" placeholder="Suchen nach MAC, IP, Hostname oder Beschreibung" aria-label="Suchen">
+      <select id="fScope" aria-label="Interface oder Subnetz filtern" hidden></select>
+      <label class="chk"><input type="checkbox" id="fIssues"> Nur mit Hinweisen</label>
+      <span class="spacer"></span>
+      <button class="btn" id="addBtn">Eintrag hinzufügen</button>
+      <button class="btn primary" id="impBtn">Importieren</button>
+    </div>
+
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden></div>
+    </div>
+
+    <div class="savebar" id="savebar" hidden>
+      <div class="sum" id="saveSum"></div>
+      <button class="btn" id="discardBtn">Verwerfen</button>
+      <button class="btn" id="csvBtn">Als CSV exportieren</button>
+      <button class="btn primary" id="saveBtn">config.xml speichern</button>
+      <details>
+        <summary>So spielst du die Datei wieder ein</summary>
+        <p>pfSense: Diagnostics › Backup &amp; Restore › Restore Backup. Unter „Restore area“ kannst du „DHCP Server“ wählen, dann wird nur dieser Bereich ersetzt. Bei Kea oder Dnsmasq auf OPNsense: System › Configuration › Backups › Restore.</p>
+        <p>Bewahre die Originaldatei auf, bis du geprüft hast, dass alles läuft. Nach dem Speichern kannst du hier direkt weiterarbeiten, Änderungen bauen auf dem gespeicherten Stand auf.</p>
+        <p><button class="btn" id="copyBtn">XML in die Zwischenablage kopieren</button></p>
+      </details>
+    </div>
+  </section>
+
+  <footer class="foot">Verarbeitet alles lokal im Browser. Andere Bereiche der Konfiguration bleiben unverändert.</footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+'use strict';
+const $=(s,r)=>(r||document).querySelector(s);
+const $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newUuid=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);});
+const FIELDS=['scope','mac','ip','hostname','descr'];
+let S=null, seq=1;
+
+/* ---------- IP / MAC ---------- */
+function ipToInt(s){const m=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(s||'').trim());if(!m)return null;const p=m.slice(1).map(Number);if(p.some(x=>x>255))return null;return ((p[0]*16777216)+(p[1]<<16)+(p[2]<<8)+p[3])>>>0;}
+function intToIp(n){return [n>>>24,(n>>>16)&255,(n>>>8)&255,n&255].join('.');}
+function cidrOf(ip,bits){const n=ipToInt(ip);if(n==null||!(bits>=0&&bits<=32))return null;const mask=bits===0?0:(0xFFFFFFFF<<(32-bits))>>>0;const net=(n&mask)>>>0;return {net,mask,bits,bcast:(net|(~mask>>>0))>>>0,label:intToIp(net)+'/'+bits};}
+function inCidr(c,n){return !!c&&n!=null&&((n&c.mask)>>>0)===c.net;}
+function normMac(s){s=String(s||'').trim();if(!s||!/^[0-9a-fA-F:.\- ]+$/.test(s))return null;const h=s.toLowerCase().replace(/[^0-9a-f]/g,'');if(h.length!==12)return null;return h.match(/../g).join(':');}
+function cleanHost(h){return String(h||'').trim().replace(/[\s_.]+/g,'-').replace(/[^A-Za-z0-9-]/g,'').replace(/^-+|-+$/g,'').slice(0,63);}
+const HOST_RE=/^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+
+/* ---------- XML helpers ---------- */
+function kids(el,tag){return el?[...el.children].filter(c=>!tag||c.tagName===tag):[];}
+function kid(el,tag){return el?([...el.children].find(c=>c.tagName===tag)||null):null;}
+function path(el,...tags){for(const t of tags){el=kid(el,t);if(!el)return null;}return el;}
+function txt(el,tag){const c=kid(el,tag);return c?c.textContent.trim():'';}
+function indentOf(el){const p=el.previousSibling;if(p&&p.nodeType===3){const m=/\n([ \t]*)$/.exec(p.nodeValue);if(m)return m[1];}return null;}
+function depthIndent(el){let d=0,e=el;while(e.parentNode&&e.parentNode.nodeType===1){d++;e=e.parentNode;}return S.unit.repeat(d);}
+function indOf(el){const i=indentOf(el);return i==null?depthIndent(el):i;}
+function insertChild(parent,el,after){
+  const d=S.doc;const els=kids(parent);
+  if(!after&&els.length)after=els[els.length-1];
+  if(after){const ind=indOf(after);const ref=after.nextSibling;parent.insertBefore(d.createTextNode('\n'+ind),ref);parent.insertBefore(el,ref);}
+  else{const pInd=indOf(parent);[...parent.childNodes].forEach(n=>{if(n.nodeType===3&&!n.nodeValue.trim())parent.removeChild(n);});parent.appendChild(d.createTextNode('\n'+pInd+S.unit));parent.appendChild(el);parent.appendChild(d.createTextNode('\n'+pInd));}
+}
+function removeEl(el){const p=el.previousSibling;if(p&&p.nodeType===3&&!p.nodeValue.trim())p.parentNode.removeChild(p);if(el.parentNode)el.parentNode.removeChild(el);}
+function reindent(el){
+  const ch=kids(el);if(!ch.length)return;
+  const ind=indOf(el),d=S.doc;
+  [...el.childNodes].forEach(n=>{if(n.nodeType===3&&!n.nodeValue.trim())el.removeChild(n);});
+  ch.forEach(c=>el.insertBefore(d.createTextNode('\n'+ind+S.unit),c));
+  el.appendChild(d.createTextNode('\n'+ind));
+  ch.forEach(reindent);
+}
+function setTxt(el,tag,val,cdata){
+  const d=S.doc;let c=kid(el,tag);
+  if(!c){c=d.createElement(tag);insertChild(el,c,null);}
+  const hadC=[...c.childNodes].some(n=>n.nodeType===4);
+  while(c.firstChild)c.removeChild(c.firstChild);
+  val=val==null?'':String(val);
+  if(val!==''){c.appendChild((hadC||cdata)&&!val.includes(']]>')?d.createCDATASection(val):d.createTextNode(val));}
+}
+function makeEl(tag,fields,withUuid){
+  const d=S.doc;const el=d.createElement(tag);
+  if(withUuid)el.setAttribute('uuid',newUuid());
+  fields.forEach(([t,v])=>{const c=d.createElement(t);if(v)c.appendChild(d.createTextNode(v));el.appendChild(c);});
+  return el;
+}
+function blankClone(tpl){
+  const c=tpl.cloneNode(true);
+  kids(c).forEach(ch=>{const had=kids(ch).length>0;const v=ch.textContent.trim();while(ch.firstChild)ch.removeChild(ch.firstChild);if(!had&&/^[01]$/.test(v))ch.appendChild(S.doc.createTextNode('0'));});
+  if(c.hasAttribute('uuid'))c.setAttribute('uuid',newUuid());
+  return c;
+}
+
+/* ---------- parse ---------- */
+function parseConfig(text){
+  if(/-{4}\s*BEGIN config\.xml\s*-{4}/.test(text))throw new Error('Diese Sicherung ist verschlüsselt. Lade sie in der Firewall noch einmal ohne Verschlüsselung herunter und öffne sie dann hier.');
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw new Error('Die Datei ist kein gültiges XML. Prüfe, ob es die config.xml aus der Sicherung ist.');
+  const root=doc.documentElement;const type=root.tagName.toLowerCase();
+  if(type!=='pfsense'&&type!=='opnsense')throw new Error('Das ist keine pfSense- oder OPNsense-Konfiguration. Das oberste Element heißt <'+root.tagName+'>.');
+  const dm=/^\s*(<\?xml[^>]*\?>)/.exec(text);
+  const um=/\n([ \t]+)</.exec(text);
+  const M={doc,root,type,decl:dm?dm[1]:'<?xml version="1.0"?>',unit:um?um[1]:'\t',interfaces:[],scopes:{isc:[],kea:[]},backends:{},entries:[]};
+  kids(kid(root,'interfaces')).forEach(i=>{const ip=txt(i,'ipaddr');const c=cidrOf(ip,parseInt(txt(i,'subnet'),10));M.interfaces.push({key:i.tagName,descr:txt(i,'descr')||i.tagName.toUpperCase(),ip,cidr:c});});
+  const mk=(backend,scope,node,f)=>{const e={id:seq++,backend,scope:scope||'',node,mac:f.mac,ip:f.ip,hostname:f.hostname,descr:f.descr,isNew:false,deleted:false};e.orig=snap(e);return e;};
+  // ISC
+  const dh=kid(root,'dhcpd');
+  M.interfaces.forEach(i=>{if(!i.cidr)return;const sec=kid(dh,i.key);const r=kid(sec,'range');const a=ipToInt(txt(r,'from')),b=ipToInt(txt(r,'to'));
+    M.scopes.isc.push({id:i.key,label:i.descr+' ('+i.cidr.label+')',short:i.descr,cidr:i.cidr,ifip:ipToInt(i.ip),pools:(a!=null&&b!=null)?[[a,b]]:[],enabled:!!(sec&&kid(sec,'enable'))});});
+  let iscCount=0,iscEnabled=false;
+  kids(dh).forEach(sec=>{
+    if(kid(sec,'enable'))iscEnabled=true;
+    if(!M.scopes.isc.some(s=>s.id===sec.tagName)&&kids(sec,'staticmap').length){const i=M.interfaces.find(x=>x.key===sec.tagName);M.scopes.isc.push({id:sec.tagName,label:(i?i.descr:sec.tagName)+' (ohne feste Adresse)',short:i?i.descr:sec.tagName,cidr:null,ifip:null,pools:[]});}
+    kids(sec,'staticmap').forEach(sm=>{iscCount++;M.entries.push(mk('isc',sec.tagName,sm,{mac:txt(sm,'mac'),ip:txt(sm,'ipaddr'),hostname:txt(sm,'hostname'),descr:txt(sm,'descr')}));});
+  });
+  if(type==='pfsense'||dh)M.backends.isc={label:type==='pfsense'?'DHCP-Server':'ISC DHCP',enabled:iscEnabled,count:iscCount};
+  // Kea
+  const opn=kid(root,'OPNsense');
+  const kea4=path(opn,'Kea','dhcp4');
+  if(kea4){
+    kids(kid(kea4,'subnets'),'subnet4').forEach(s=>{
+      const sub=txt(s,'subnet');const [a,b]=sub.split('/');const c=cidrOf(a,parseInt(b,10));
+      const pools=txt(s,'pools').split(/[\n,]+/).map(p=>p.trim()).filter(Boolean).map(p=>{if(p.includes('-')){const [x,y]=p.split('-').map(z=>ipToInt(z.trim()));return (x!=null&&y!=null)?[x,y]:null;}const [pa,pb]=p.split('/');const pc=cidrOf(pa,parseInt(pb,10));return pc?[pc.net,pc.bcast]:null;}).filter(Boolean);
+      const ds=txt(s,'description');
+      M.scopes.kea.push({id:s.getAttribute('uuid')||'',label:sub+(ds?' ('+ds+')':''),short:ds||sub,cidr:c,ifip:null,pools});
+    });
+    let n=0;
+    kids(kid(kea4,'reservations'),'reservation').forEach(r=>{n++;M.entries.push(mk('kea',txt(r,'subnet'),r,{mac:txt(r,'hw_address'),ip:txt(r,'ip_address'),hostname:txt(r,'hostname'),descr:txt(r,'description')}));});
+    M.backends.kea={label:'Kea DHCP',enabled:txt(kid(kea4,'general'),'enabled')==='1',count:n};
+  }
+  const dmq=kid(opn,'dnsmasq');
+  if(dmq){let n=0;kids(dmq,'hosts').forEach(h=>{n++;M.entries.push(mk('dnsmasq','',h,{mac:txt(h,'hwaddr'),ip:txt(h,'ip'),hostname:txt(h,'host'),descr:txt(h,'descr')}));});
+    M.backends.dnsmasq={label:'Dnsmasq',enabled:txt(dmq,'enable')==='1',count:n};}
+  return M;
+}
+function snap(e){const o={};FIELDS.forEach(k=>o[k]=e[k]);return o;}
+function isChanged(e){return !e.isNew&&!e.deleted&&FIELDS.some(k=>String(e[k]||'').trim()!==String(e.orig[k]||'').trim());}
+function defaultBackend(){
+  const b=Object.entries(S.backends);if(!b.length)return 'isc';
+  const en=b.filter(([,v])=>v.enabled);const pool=en.length?en:b;
+  pool.sort((x,y)=>S.entries.filter(e=>e.backend===y[0]).length-S.entries.filter(e=>e.backend===x[0]).length);
+  return pool[0][0];
+}
+function scopeFor(e){
+  if(e.backend==='dnsmasq'){const n=ipToInt((e.ip.split(',')[0]||'').trim());return S.scopes.isc.find(s=>inCidr(s.cidr,n))||null;}
+  return (S.scopes[e.backend]||[]).find(s=>s.id===e.scope)||null;
+}
+function autoScope(backend,ip){if(backend==='dnsmasq')return '';const n=ipToInt(ip);if(n==null)return '';const s=(S.scopes[backend]||[]).find(s=>inCidr(s.cidr,n));return s?s.id:'';}
+function beLabel(b){return (S.backends[b]&&S.backends[b].label)||b;}
+
+/* ---------- validation ---------- */
+function validate(){
+  const res=new Map();const live=S.entries.filter(e=>!e.deleted);
+  const byIp=new Map(),byMac=new Map(),byHost=new Map();
+  const add=(m,k,e)=>{if(!m.has(k))m.set(k,[]);m.get(k).push(e);};
+  live.forEach(e=>{
+    const ip=e.backend==='dnsmasq'?(e.ip.split(',')[0]||'').trim():e.ip.trim();
+    if(ip)add(byIp,e.backend+'|'+ip,e);
+    const m=normMac(e.mac);if(m)add(byMac,e.backend+'|'+(e.backend==='dnsmasq'?'':e.scope)+'|'+m,e);
+    if(e.hostname.trim())add(byHost,e.backend+'|'+e.hostname.trim().toLowerCase(),e);
+  });
+  live.forEach(e=>{
+    const is=[];const E=m=>is.push({lvl:'err',m}),W=m=>is.push({lvl:'warn',m});
+    const macRaw=e.mac.trim();
+    if(!macRaw){if(e.backend!=='dnsmasq')E('MAC-Adresse fehlt');}
+    else if(e.backend==='dnsmasq'){if(!macRaw.split(',').every(x=>normMac(x)))E('MAC-Adresse ungültig');}
+    else if(!normMac(macRaw))E('MAC-Adresse ungültig');
+    const ipRaw=e.ip.trim();let n=null;
+    if(!ipRaw)E('IP-Adresse fehlt');
+    else if(e.backend==='dnsmasq'){const parts=ipRaw.split(',').map(x=>x.trim()).filter(Boolean);if(!parts.every(x=>ipToInt(x)!=null||/^[0-9a-f:]+$/i.test(x)&&x.includes(':')))E('IP-Adresse ungültig');const v4=parts.find(x=>ipToInt(x)!=null);n=v4?ipToInt(v4):null;}
+    else{n=ipToInt(ipRaw);if(n==null)E('IP-Adresse ungültig');}
+    if(e.backend!=='dnsmasq'){
+      const sc=scopeFor(e);
+      if(!sc)E(e.backend==='kea'?'Kein Subnetz gewählt':'Kein Interface gewählt');
+      else if(n!=null&&sc.cidr){
+        if(!inCidr(sc.cidr,n))E('IP liegt nicht im Netz '+sc.cidr.label);
+        else if(sc.cidr.bits<31&&(n===sc.cidr.net||n===sc.cidr.bcast))E('Netz- oder Broadcast-Adresse');
+        if(sc.ifip!=null&&sc.ifip===n)E('Das ist die Adresse der Firewall');
+        if(e.backend==='isc'&&sc.enabled===false)W('DHCP-Server auf diesem Interface ist ausgeschaltet');
+        if(sc.pools.some(([a,b])=>n>=a&&n<=b))W(S.type==='pfsense'?'Liegt im dynamischen Bereich (pfSense erlaubt das in der Oberfläche nicht)':'Liegt im dynamischen Bereich');
+      }
+    }
+    const h=e.hostname.trim();
+    if(h&&!HOST_RE.test(h))E('Hostname nur mit Buchstaben, Ziffern und Bindestrich');
+    const ip=e.backend==='dnsmasq'?(e.ip.split(',')[0]||'').trim():ipRaw;
+    if(ip&&(byIp.get(e.backend+'|'+ip)||[]).length>1)E('IP doppelt vergeben');
+    const m=normMac(e.mac);if(m&&(byMac.get(e.backend+'|'+(e.backend==='dnsmasq'?'':e.scope)+'|'+m)||[]).length>1)E('MAC doppelt eingetragen');
+    if(h&&(byHost.get(e.backend+'|'+h.toLowerCase())||[]).length>1)W('Hostname mehrfach vorhanden');
+    res.set(e.id,is);
+  });
+  return res;
+}
+
+/* ---------- init ---------- */
+function loadText(text,name){
+  const M=parseConfig(text);
+  const keep=S?{filter:S.filter,sort:S.sort}:null;
+  S=Object.assign(M,{fileName:name||'config.xml',baseText:text,unsaved:false,lastXml:null,confirmErr:false,
+    filter:{q:'',backend:'all',scope:'all',issues:false},sort:{key:'ip',dir:1}});
+  if(keep&&name===undefined){S.filter=keep.filter;S.sort=keep.sort;}
+  const bes=Object.keys(S.backends);
+  if(S.filter.backend!=='all'&&!bes.includes(S.filter.backend))S.filter.backend='all';
+  if(bes.length>1&&S.filter.backend==='all'){S.filter.backend=defaultBackend();}
+  $('#start').hidden=true;$('#app').hidden=false;$('#reloadBtn').hidden=false;
+  $('#fileinfo').innerHTML='<span class="badge">'+(S.type==='pfsense'?'pfSense':'OPNsense')+'</span>'+esc(S.fileName);
+  $('#loadErr').hidden=true;
+  closeImport();renderAll();
+}
+async function openFile(file){
+  try{const t=await file.text();loadText(t,file.name);}
+  catch(err){if(S&&!$('#app').hidden){toast(err.message);}else{const b=$('#loadErr');b.textContent=err.message;b.hidden=false;}}
+}
+
+/* ---------- render ---------- */
+function renderAll(){renderOverview();renderScopeFilter();render();}
+function renderOverview(){
+  const bes=Object.keys(S.backends);
+  let h='';
+  if(bes.length>1){
+    bes.forEach(b=>{const n=S.entries.filter(e=>e.backend===b&&!e.deleted).length;h+='<button class="chip" data-be="'+b+'" aria-pressed="'+(S.filter.backend===b)+'">'+esc(beLabel(b))+'<b>'+n+'</b>'+(S.backends[b].enabled?'<small>aktiv</small>':'')+'</button>';});
+    const n=S.entries.filter(e=>!e.deleted).length;
+    h+='<button class="chip" data-be="all" aria-pressed="'+(S.filter.backend==='all')+'">Alle<b>'+n+'</b></button>';
+  }else{
+    const n=S.entries.filter(e=>!e.deleted).length;
+    h='<span class="note">'+n+' Reservierung'+(n===1?'':'en')+' in '+S.scopes.isc.filter(s=>S.entries.some(e=>e.scope===s.id&&!e.deleted)).length+' Netz(en). Interfaces mit fester IPv4-Adresse: '+esc(S.scopes.isc.filter(s=>s.cidr).map(s=>s.short).join(', ')||'keine')+'</span>';
+  }
+  $('#overview').innerHTML=h;
+}
+function renderScopeFilter(){
+  const sel=$('#fScope');const b=S.filter.backend;const list=(b==='isc'||b==='kea')?S.scopes[b]:(Object.keys(S.backends).length===1?S.scopes.isc:null);
+  if(!list||list.length<2){sel.hidden=true;S.filter.scope='all';return;}
+  sel.hidden=false;
+  sel.innerHTML='<option value="all">Alle Netze</option>'+list.map(s=>'<option value="'+esc(s.id)+'"'+(S.filter.scope===s.id?' selected':'')+'>'+esc(s.label)+'</option>').join('');
+  if(!list.some(s=>s.id===S.filter.scope))S.filter.scope='all';
+}
+function visible(){
+  const f=S.filter,q=f.q.trim().toLowerCase();
+  let rows=S.entries.filter(e=>(f.backend==='all'||e.backend===f.backend)&&(f.scope==='all'||e.scope===f.scope)&&(!q||[e.mac,e.ip,e.hostname,e.descr].some(v=>String(v).toLowerCase().includes(q))));
+  if(f.issues){S.issues=validate();rows=rows.filter(e=>(S.issues.get(e.id)||[]).length);}
+  const k=S.sort.key,d=S.sort.dir;
+  const val=e=>k==='ip'?(ipToInt((e.ip.split(',')[0]||'').trim())??4294967296):k==='scope'?((scopeFor(e)||{}).short||'').toLowerCase():String(e[k]||'').toLowerCase();
+  rows.sort((a,b)=>{if(a.isNew!==b.isNew)return a.isNew?1:-1;const x=val(a),y=val(b);return x<y?-d:x>y?d:0;});
+  return rows;
+}
+function scopeCell(e){
+  if(e.backend==='dnsmasq'){const s=scopeFor(e);return '<span class="derived" data-derived>'+esc(s?s.short:'–')+'</span>';}
+  const list=S.scopes[e.backend]||[];
+  let o=list.map(s=>'<option value="'+esc(s.id)+'"'+(s.id===e.scope?' selected':'')+'>'+esc(s.short+(s.cidr?' '+s.cidr.label:''))+'</option>').join('');
+  if(!list.some(s=>s.id===e.scope))o='<option value="'+esc(e.scope)+'" selected>'+(e.scope?'unbekannt':'Bitte wählen')+'</option>'+o;
+  return '<select class="in" data-f="scope" aria-label="Interface oder Subnetz">'+o+'</select>';
+}
+function render(){
+  const multi=Object.keys(S.backends).length>1&&S.filter.backend==='all';
+  const cols=[['st','Status',null],...(multi?[['be','Dienst','backend']]:[]),['scope',S.filter.backend==='kea'?'Subnetz':'Interface','scope'],['mac','MAC-Adresse','mac'],['ip','IP-Adresse','ip'],['host','Hostname','hostname'],['descr','Beschreibung','descr'],['act','',null]];
+  $('#thead').innerHTML='<tr>'+cols.map(([c,l,s])=>'<th class="c-'+c+'"'+(s?' data-sort="'+s+'"':'')+'>'+l+(s&&S.sort.key===s?'<span class="arr">'+(S.sort.dir>0?'▲':'▼')+'</span>':'')+'</th>').join('')+'</tr>';
+  const rows=visible();
+  $('#tbody').innerHTML=rows.map(e=>{
+    const ro=e.deleted?' disabled':'';
+    return '<tr data-id="'+e.id+'"><td class="c-st"><div class="st"></div></td>'+
+      (multi?'<td class="c-be">'+esc(beLabel(e.backend))+'</td>':'')+
+      '<td class="c-scope">'+scopeCell(e)+'</td>'+
+      '<td class="c-mac"><input class="in mono" data-f="mac" value="'+esc(e.mac)+'" spellcheck="false" autocomplete="off" aria-label="MAC-Adresse"'+ro+'></td>'+
+      '<td class="c-ip"><input class="in mono" data-f="ip" value="'+esc(e.ip)+'" spellcheck="false" autocomplete="off" inputmode="decimal" aria-label="IP-Adresse"'+ro+'></td>'+
+      '<td class="c-host"><input class="in" data-f="hostname" value="'+esc(e.hostname)+'" spellcheck="false" autocomplete="off" aria-label="Hostname"'+ro+'></td>'+
+      '<td class="c-descr"><input class="in" data-f="descr" value="'+esc(e.descr)+'" autocomplete="off" aria-label="Beschreibung"'+ro+'></td>'+
+      '<td class="c-act"><button class="act" data-act="del">'+(e.deleted?'Zurückholen':'Entfernen')+'</button></td></tr>';
+  }).join('');
+  $$('#tbody select').forEach(s=>{if(S.entries.find(x=>x.id==s.closest('tr').dataset.id).deleted)s.disabled=true;});
+  const empty=$('#empty');
+  if(!rows.length){
+    empty.hidden=false;
+    empty.innerHTML=S.entries.length?'<p>Keine Einträge passen zu Suche oder Filter.</p>':'<p>In dieser Konfiguration gibt es noch keine Reservierungen.</p><button class="btn" data-empty="add">Eintrag hinzufügen</button> <button class="btn primary" data-empty="imp">Liste importieren</button>';
+  }else empty.hidden=true;
+  refresh();
+}
+function refresh(){
+  S.issues=validate();
+  const c={add:0,upd:0,del:0,err:0,warn:0};
+  S.entries.forEach(e=>{if(e.deleted){if(!e.isNew)c.del++;return;}if(e.isNew)c.add++;else if(isChanged(e))c.upd++;const is=S.issues.get(e.id)||[];if(is.some(i=>i.lvl==='err'))c.err++;else if(is.length)c.warn++;});
+  $$('#tbody tr').forEach(tr=>{
+    const e=S.entries.find(x=>x.id==tr.dataset.id);if(!e)return;
+    const is=e.deleted?[]:(S.issues.get(e.id)||[]);
+    tr.dataset.change=e.deleted?'del':e.isNew?'new':isChanged(e)?'chg':'';
+    let h='';
+    if(e.deleted)h='<span class="l">Wird beim Speichern entfernt</span>';
+    else{is.forEach(i=>{h+='<span class="l '+i.lvl+'">'+esc(i.m)+'</span>';});if(!is.length&&e.isNew)h='<span class="l new">Neu</span>';else if(!is.length&&isChanged(e))h='<span class="l chg">Geändert</span>';}
+    tr.querySelector('.st').innerHTML=h;
+    const d=tr.querySelector('[data-derived]');if(d){const s=scopeFor(e);d.textContent=s?s.short:'–';}
+  });
+  S.counts=c;
+  const bar=$('#savebar');const total=c.add+c.upd+c.del;
+  if(!total&&!S.unsaved){bar.hidden=true;S.confirmErr=false;return;}
+  bar.hidden=false;
+  const parts=[];if(c.add)parts.push(c.add+' neu');if(c.upd)parts.push(c.upd+' geändert');if(c.del)parts.push(c.del+' entfernt');
+  let s=total?parts.join(', '):'Änderungen übernommen, Datei noch nicht gespeichert';
+  if(c.err)s+='<br><span class="e">'+c.err+' Eintr'+(c.err===1?'ag hat':'äge haben')+' Fehler</span>';
+  if(S.confirmErr&&c.err)s+='<br><span class="e">Die Firewall übernimmt fehlerhafte Einträge eventuell trotzdem. Nochmal klicken, um dennoch zu speichern.</span>';
+  $('#saveSum').innerHTML=s;
+  $('#saveBtn').textContent=(S.confirmErr&&c.err)?'Trotzdem speichern':'config.xml speichern';
+  $('#discardBtn').hidden=!total;
+}
+
+/* ---------- table events ---------- */
+function entryOf(el){const tr=el.closest('tr');return tr?S.entries.find(x=>x.id==tr.dataset.id):null;}
+$('#tbody').addEventListener('input',ev=>{const f=ev.target.dataset.f;if(!f)return;const e=entryOf(ev.target);if(!e)return;e[f]=ev.target.value;S.confirmErr=false;refresh();});
+$('#tbody').addEventListener('change',ev=>{const f=ev.target.dataset.f;if(f!=='scope')return;const e=entryOf(ev.target);e.scope=ev.target.value;refresh();});
+$('#tbody').addEventListener('focusout',ev=>{
+  const f=ev.target.dataset.f;const e=entryOf(ev.target);if(!e||e.deleted)return;
+  if(f==='mac'&&e.backend!=='dnsmasq'){const m=normMac(e.mac);if(m&&m!==e.mac){e.mac=m;ev.target.value=m;refresh();}}
+  if(f==='ip'&&e.backend!=='dnsmasq'){const sc=scopeFor(e);const n=ipToInt(e.ip);if(n!=null&&!(sc&&inCidr(sc.cidr,n))){const a=autoScope(e.backend,e.ip);if(a&&(e.isNew||!sc)){e.scope=a;const sel=ev.target.closest('tr').querySelector('select[data-f="scope"]');if(sel){sel.outerHTML=scopeCell(e);}refresh();}}}
+});
+$('#tbody').addEventListener('click',ev=>{
+  const b=ev.target.closest('[data-act="del"]');if(!b)return;const e=entryOf(b);if(!e)return;
+  if(e.isNew&&!e.deleted){S.entries=S.entries.filter(x=>x!==e);}else e.deleted=!e.deleted;
+  S.confirmErr=false;renderOverview();render();
+});
+$('#thead').addEventListener('click',ev=>{const th=ev.target.closest('[data-sort]');if(!th)return;const k=th.dataset.sort;if(S.sort.key===k)S.sort.dir*=-1;else S.sort={key:k,dir:1};render();});
+$('#overview').addEventListener('click',ev=>{const b=ev.target.closest('[data-be]');if(!b)return;S.filter.backend=b.dataset.be;S.filter.scope='all';renderAll();});
+$('#q').addEventListener('input',ev=>{S.filter.q=ev.target.value;render();});
+$('#fScope').addEventListener('change',ev=>{S.filter.scope=ev.target.value;render();});
+$('#fIssues').addEventListener('change',ev=>{S.filter.issues=ev.target.checked;render();});
+function addEntry(){
+  const b=S.filter.backend!=='all'?S.filter.backend:defaultBackend();
+  if(!S.backends[b]&&b!=='isc'){toast('Kein DHCP-Dienst in dieser Konfiguration gefunden.');return;}
+  const list=S.scopes[b]||[];
+  const scope=b==='dnsmasq'?'':(S.filter.scope!=='all'?S.filter.scope:((list.find(s=>s.id==='lan')||list[0]||{}).id||''));
+  const e={id:seq++,backend:b,scope,node:null,mac:'',ip:'',hostname:'',descr:'',isNew:true,deleted:false,orig:null};
+  S.entries.push(e);S.filter.q='';$('#q').value='';S.filter.issues=false;$('#fIssues').checked=false;
+  render();
+  const tr=$('#tbody tr[data-id="'+e.id+'"]');if(tr){tr.scrollIntoView({block:'nearest'});tr.querySelector('[data-f="mac"]').focus();}
+}
+$('#addBtn').addEventListener('click',addEntry);
+$('#empty').addEventListener('click',ev=>{const b=ev.target.closest('[data-empty]');if(!b)return;if(b.dataset.empty==='add')addEntry();else openImport();});
+
+/* ---------- commit / save ---------- */
+function ensureIscSection(key){
+  const root=S.root;let dh=kid(root,'dhcpd');
+  if(!dh){dh=S.doc.createElement('dhcpd');insertChild(root,dh,null);}
+  let sec=kid(dh,key);if(!sec){sec=S.doc.createElement(key);insertChild(dh,sec,null);}
+  return sec;
+}
+function lastOf(parent,tag){const l=kids(parent,tag);return l.length?l[l.length-1]:null;}
+function writeFields(e,all){
+  const n=e.node,o=e.orig||{};const ch=k=>all||String(e[k]||'').trim()!==String(o[k]||'').trim();
+  const mac=e.backend==='dnsmasq'?e.mac.trim():(normMac(e.mac)||e.mac.trim());
+  if(e.backend==='isc'){if(ch('mac'))setTxt(n,'mac',mac);if(ch('ip'))setTxt(n,'ipaddr',e.ip.trim());if(ch('hostname'))setTxt(n,'hostname',e.hostname.trim());if(ch('descr'))setTxt(n,'descr',e.descr.trim(),true);}
+  else if(e.backend==='kea'){if(ch('scope'))setTxt(n,'subnet',e.scope);if(ch('mac'))setTxt(n,'hw_address',mac);if(ch('ip'))setTxt(n,'ip_address',e.ip.trim());if(ch('hostname'))setTxt(n,'hostname',e.hostname.trim());if(ch('descr'))setTxt(n,'description',e.descr.trim());}
+  else{if(ch('mac'))setTxt(n,'hwaddr',mac);if(ch('ip'))setTxt(n,'ip',e.ip.trim());if(ch('hostname'))setTxt(n,'host',e.hostname.trim());if(ch('descr'))setTxt(n,'descr',e.descr.trim());}
+  e.mac=mac;
+}
+function createNode(e){
+  let parent,node,after;
+  if(e.backend==='isc'){
+    parent=ensureIscSection(e.scope);
+    const tpl=S.root.querySelector('dhcpd > * > staticmap');
+    node=tpl?blankClone(tpl):makeEl('staticmap',[['mac'],['cid'],['ipaddr'],['hostname'],['descr']]);
+    after=lastOf(parent,'staticmap');
+  }else if(e.backend==='kea'){
+    const kea4=path(S.root,'OPNsense','Kea','dhcp4');
+    parent=kid(kea4,'reservations');if(!parent){parent=S.doc.createElement('reservations');insertChild(kea4,parent,null);}
+    const tpl=kid(parent,'reservation');
+    node=tpl?blankClone(tpl):makeEl('reservation',[['subnet'],['ip_address'],['hw_address'],['hostname'],['description']],true);
+    after=lastOf(parent,'reservation');
+  }else{
+    parent=path(S.root,'OPNsense','dnsmasq');
+    const tpl=kid(parent,'hosts');
+    node=tpl?blankClone(tpl):makeEl('hosts',[['host'],['domain'],['local','0'],['ip'],['cnames'],['client_id'],['hwaddr'],['lease_time'],['ignore','0'],['set_tag'],['descr'],['comments'],['aliases']],true);
+    after=lastOf(parent,'hosts');
+  }
+  insertChild(parent,node,after);reindent(node);e.node=node;writeFields(e,true);
+}
+function commit(){
+  const c={add:0,upd:0,del:0};
+  S.entries.forEach(e=>{
+    if(e.deleted){if(e.node){removeEl(e.node);c.del++;}return;}
+    if(e.isNew){createNode(e);c.add++;return;}
+    if(isChanged(e)){
+      if(e.backend==='isc'&&e.scope!==e.orig.scope){const sec=ensureIscSection(e.scope);removeEl(e.node);insertChild(sec,e.node,lastOf(sec,'staticmap'));reindent(e.node);}
+      writeFields(e,false);c.upd++;
+    }
+  });
+  S.entries=S.entries.filter(e=>!e.deleted);
+  S.entries.forEach(e=>{e.isNew=false;e.orig=snap(e);});
+  const rev=kid(S.root,'revision');
+  if(rev&&(c.add||c.upd||c.del)){setTxt(rev,'time',String(Math.floor(Date.now()/1000)));setTxt(rev,'description','DHCP-Reservierungen bearbeitet: '+c.add+' neu, '+c.upd+' geändert, '+c.del+' entfernt');}
+  let out=new XMLSerializer().serializeToString(S.doc);
+  if(!/^\s*<\?xml/.test(out))out=S.decl+'\n'+out;
+  if(S.type==='pfsense')out=out.replace(/<([A-Za-z_][\w.\-]*)((?:\s+[\w.\-:]+="[^"]*")*)\s*\/>/g,'<$1$2></$1>');
+  if(!out.endsWith('\n'))out+='\n';
+  S.lastXml=out;S.baseText=out;
+  Object.keys(S.backends).forEach(b=>S.backends[b].count=S.entries.filter(e=>e.backend===b).length);
+  return c;
+}
+function outName(ext){const b=S.fileName.replace(/\.(xml|txt)$/i,'');return b+'-dhcp'+ext;}
+async function offerFile(name,data,mime){
+  let api=null;
+  try{if(window.claude&&typeof window.claude.use==='function')api=await window.claude.use('downloads');}catch(_){api=null;}
+  if(api){
+    try{await api.save({filename:name,data});return {ok:true,name};}
+    catch(err){
+      const code=err&&err.code;
+      if(code==='rejected_extension'&&/\.xml$/i.test(name)){
+        try{await api.save({filename:name+'.txt',data});return {ok:true,name:name+'.txt',renamed:true};}
+        catch(e2){return {ok:false,code:e2&&e2.code};}
+      }
+      return {ok:false,code};
+    }
+  }
+  if(window.claude&&typeof window.claude.use==='function'&&!api)return {ok:false,code:'unavailable'};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:mime}));a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
+  return {ok:true,name};
+}
+function failMsg(code){
+  if(code==='declined')return 'Speichern abgebrochen.';
+  if(code==='rate_limited')return 'Es ist schon ein Speicherdialog offen.';
+  return 'Speichern ist in dieser Ansicht nicht möglich. Nutze „XML in die Zwischenablage kopieren“.';
+}
+$('#saveBtn').addEventListener('click',async()=>{
+  const c=S.counts||{};
+  if(c.err&&!S.confirmErr){S.confirmErr=true;refresh();return;}
+  S.confirmErr=false;
+  if((c.add||0)+(c.upd||0)+(c.del||0)){commit();renderAll();}
+  if(!S.lastXml){S.lastXml=S.baseText;}
+  S.unsaved=true;refresh();
+  const r=await offerFile(outName('.xml'),S.lastXml,'application/xml');
+  if(r.ok){S.unsaved=false;refresh();toast(r.renamed?'Gespeichert als '+r.name+'. Vor dem Einspielen die Endung .txt entfernen.':'Gespeichert als '+r.name+'.');}
+  else toast(failMsg(r.code));
+});
+$('#discardBtn').addEventListener('click',()=>{
+  const n=(S.counts.add||0)+(S.counts.upd||0)+(S.counts.del||0);
+  if(!n)return;
+  const b=$('#discardBtn');
+  if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='Wirklich verwerfen?';setTimeout(()=>{b.dataset.armed='';b.textContent='Verwerfen';},4000);return;}
+  b.dataset.armed='';b.textContent='Verwerfen';
+  const unsaved=S.unsaved;loadText(S.baseText);S.unsaved=unsaved;refresh();toast('Änderungen verworfen.');
+});
+$('#copyBtn').addEventListener('click',async()=>{
+  const c=S.counts||{};if((c.add||0)+(c.upd||0)+(c.del||0)){commit();renderAll();}
+  const xml=S.lastXml||S.baseText;
+  try{await navigator.clipboard.writeText(xml);toast('XML kopiert. In eine Datei config.xml einfügen und speichern.');}
+  catch(_){toast('Kopieren wurde vom Browser blockiert.');}
+});
+function csvCell(v){v=String(v==null?'':v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+$('#csvBtn').addEventListener('click',async()=>{
+  const rows=[['Dienst','Netz','MAC','IP','Hostname','Beschreibung']];
+  S.entries.filter(e=>!e.deleted&&(S.filter.backend==='all'||e.backend===S.filter.backend)).forEach(e=>{const s=scopeFor(e);rows.push([beLabel(e.backend),s?s.short:'',e.mac,e.ip,e.hostname,e.descr]);});
+  const csv='\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n';
+  const r=await offerFile(outName('.csv'),csv,'text/csv');
+  toast(r.ok?'CSV gespeichert. Du kannst sie bearbeiten und über „Importieren“ wieder einlesen.':failMsg(r.code));
+});
+
+/* ---------- import ---------- */
+const IMP={src:'paste',table:null,mapping:[],mapTouched:false,cfg:null,preview:[],override:new Map()};
+function openImport(){
+  const p=$('#imp');p.hidden=false;
+  const bes=Object.keys(S.backends);
+  $('#tabConvert').hidden=bes.length<2;
+  if(IMP.src==='convert'&&bes.length<2)setSrc('paste');
+  const t=$('#impTarget');const cur=t.value;
+  t.innerHTML=bes.map(b=>'<option value="'+b+'">'+esc(beLabel(b))+(S.backends[b].enabled?' (aktiv)':'')+'</option>').join('');
+  t.value=bes.includes(cur)?cur:(S.filter.backend!=='all'?S.filter.backend:defaultBackend());
+  fillConvSrc();fillScopes();buildPreview();
+  p.scrollIntoView({block:'start',behavior:'smooth'});
+}
+function closeImport(){$('#imp').hidden=true;}
+$('#impBtn').addEventListener('click',()=>{if($('#imp').hidden)openImport();else closeImport();});
+$('#impClose').addEventListener('click',closeImport);
+function setSrc(src){IMP.src=src;IMP.override.clear();$$('#impTabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.src===src)));$$('#imp [data-pane]').forEach(p=>p.hidden=p.dataset.pane!==src);}
+$('#impTabs').addEventListener('click',ev=>{const b=ev.target.closest('button[data-src]');if(!b)return;setSrc(b.dataset.src);fillConvSrc();buildPreview();});
+function fillScopes(){
+  const t=$('#impTarget').value;const w=$('#impScopeWrap');const sel=$('#impScope');
+  if(t==='dnsmasq'){w.hidden=true;sel.innerHTML='<option value="auto"></option>';return;}
+  w.hidden=false;const cur=sel.value;
+  sel.innerHTML='<option value="auto">Automatisch nach IP-Adresse</option>'+(S.scopes[t]||[]).map(s=>'<option value="'+esc(s.id)+'">'+esc(s.label)+'</option>').join('');
+  if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function fillConvSrc(){
+  const t=$('#impTarget').value;const sel=$('#impConvSrc');const cur=sel.value;
+  const opts=Object.keys(S.backends).filter(b=>b!==t);
+  sel.innerHTML=opts.map(b=>'<option value="'+b+'">'+esc(beLabel(b))+' ('+S.entries.filter(e=>e.backend===b&&!e.deleted).length+')</option>').join('');
+  if(opts.includes(cur))sel.value=cur;
+}
+$('#impTarget').addEventListener('change',()=>{IMP.override.clear();fillScopes();fillConvSrc();buildPreview();});
+$('#impScope').addEventListener('change',buildPreview);
+$('#impMode').addEventListener('change',()=>{IMP.override.clear();buildPreview();});
+$('#impConvSrc').addEventListener('change',()=>{IMP.override.clear();buildPreview();});
+let tmr=null;
+$('#impText').addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(()=>{IMP.override.clear();parsePaste();buildPreview();},200);});
+$('#impFile').addEventListener('change',async ev=>{const f=ev.target.files[0];if(!f)return;$('#impText').value=await f.text();ev.target.value='';IMP.mapTouched=false;IMP.override.clear();parsePaste();buildPreview();});
+$('#impCfg').addEventListener('change',async ev=>{
+  const f=ev.target.files[0];ev.target.value='';if(!f)return;
+  const info=$('#impCfgInfo');
+  try{
+    const saved=S.unit;const M=parseConfig(await f.text());S.unit=saved;
+    IMP.cfg=M;IMP.override.clear();
+    const bes=Object.keys(M.backends).filter(b=>M.entries.some(e=>e.backend===b));
+    const sel=$('#impCfgBe');
+    sel.innerHTML=bes.map(b=>'<option value="'+b+'">'+esc(M.backends[b].label)+' ('+M.entries.filter(e=>e.backend===b).length+')</option>').join('');
+    $('#impCfgBeWrap').hidden=bes.length<2;
+    info.className='note';info.textContent=f.name+' ('+(M.type==='pfsense'?'pfSense':'OPNsense')+'), '+M.entries.length+' Reservierungen gefunden';
+  }catch(err){IMP.cfg=null;info.className='note err';info.textContent=err.message;}
+  buildPreview();
+});
+$('#impCfgBe').addEventListener('change',()=>{IMP.override.clear();buildPreview();});
+
+function splitLine(line,d){
+  if(d===' ')return line.trim().split(/\s+/);
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];
+    if(q){if(ch==='"'){if(line[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}
+    else if(ch==='"')q=true;else if(ch===d){out.push(cur);cur='';}else cur+=ch;}
+  out.push(cur);return out.map(s=>s.trim());
+}
+function headerKey(h){h=h.toLowerCase().trim();
+  if(/mac|hw.?addr|hardware/.test(h))return 'mac';
+  if(/^(ip|ipv4|ip.?adresse|ip.?address|ip_address|adresse|address|ipaddr)$/.test(h))return 'ip';
+  if(/beschr|descr|kommentar|comment|notiz|bemerk|description/.test(h))return 'descr';
+  if(/host|^name$|gerät|geraet|device|computer/.test(h))return 'hostname';
+  return '';}
+function parsePaste(){
+  const lines=$('#impText').value.replace(/^\ufeff/,'').split(/\r?\n/).filter(l=>l.trim()&&!/^\s*#/.test(l));
+  if(!lines.length){IMP.table=null;renderMapping();return;}
+  const sample=lines.slice(0,10);
+  const cand=['\t',';',','];let d=' ';let best=0;
+  cand.forEach(c=>{const n=Math.min(...sample.map(l=>l.split(c).length-1));if(n>best){best=n;d=c;}});
+  let table=lines.map(l=>splitLine(l,d));
+  const ncol=Math.max(...table.map(r=>r.length));
+  let header=false,mapping=new Array(ncol).fill('');
+  const first=table[0];
+  const hk=first.map(headerKey);
+  if(hk.filter(Boolean).length>=2&&!first.some(v=>normMac(v)||ipToInt(v)!=null)){header=true;mapping=hk.concat(new Array(ncol-hk.length).fill(''));}
+  else{
+    const body=table.slice(0,30);const score=(i,fn)=>body.filter(r=>fn(r[i]||'')).length;
+    const macCol=[...Array(ncol).keys()].sort((a,b)=>score(b,v=>normMac(v))-score(a,v=>normMac(v)))[0];
+    const ipCol=[...Array(ncol).keys()].filter(i=>i!==macCol).sort((a,b)=>score(b,v=>ipToInt(v)!=null)-score(a,v=>ipToInt(v)!=null))[0];
+    if(score(macCol,v=>normMac(v)))mapping[macCol]='mac';
+    if(ipCol!=null&&score(ipCol,v=>ipToInt(v)!=null))mapping[ipCol]='ip';
+    const rest=[...Array(ncol).keys()].filter(i=>!mapping[i]);
+    if(rest[0]!=null)mapping[rest[0]]='hostname';
+    if(rest[1]!=null)mapping[rest[1]]='descr';
+  }
+  if(IMP.mapTouched&&IMP.mapping.length===ncol&&IMP.header===header)mapping=IMP.mapping;
+  IMP.table=header?table.slice(1):table;IMP.header=header;IMP.headRow=header?first:null;IMP.mapping=mapping;
+  renderMapping();
+}
+function renderMapping(){
+  const box=$('#impMap');
+  if(!IMP.table||!IMP.table.length){box.innerHTML='';return;}
+  const opts=[['','nicht verwenden'],['mac','MAC-Adresse'],['ip','IP-Adresse'],['hostname','Hostname'],['descr','Beschreibung']];
+  box.innerHTML=IMP.mapping.map((m,i)=>{
+    const s=(IMP.headRow&&IMP.headRow[i])||(IMP.table[0][i]||'');
+    return '<label>Spalte '+(i+1)+'<code title="'+esc(s)+'">'+esc(s||'leer')+'</code><select data-col="'+i+'">'+opts.map(([v,l])=>'<option value="'+v+'"'+(v===m?' selected':'')+'>'+l+'</option>').join('')+'</select></label>';
+  }).join('');
+}
+$('#impMap').addEventListener('change',ev=>{const s=ev.target.closest('select[data-col]');if(!s)return;IMP.mapping[+s.dataset.col]=s.value;IMP.mapTouched=true;IMP.override.clear();buildPreview();});
+
+function importRows(){
+  if(IMP.src==='paste'){
+    if(!IMP.table)return [];
+    const col=k=>IMP.mapping.indexOf(k);
+    const g=(r,k)=>{const i=col(k);return i>=0?(r[i]||''):'';};
+    return IMP.table.map(r=>({mac:g(r,'mac'),ip:g(r,'ip'),hostname:g(r,'hostname'),descr:g(r,'descr')})).filter(r=>r.mac||r.ip||r.hostname);
+  }
+  if(IMP.src==='config'){
+    if(!IMP.cfg)return [];const b=$('#impCfgBe').value;
+    return IMP.cfg.entries.filter(e=>!b||e.backend===b).map(e=>({mac:e.mac,ip:e.ip,hostname:e.hostname,descr:e.descr}));
+  }
+  const b=$('#impConvSrc').value;
+  return S.entries.filter(e=>e.backend===b&&!e.deleted).map(e=>({mac:e.mac,ip:(e.ip.split(',')[0]||'').trim(),hostname:e.hostname,descr:e.descr,src:e}));
+}
+function buildPreview(){
+  if($('#imp').hidden)return;
+  const target=$('#impTarget').value;const fixed=$('#impScope').value||'auto';const mode=$('#impMode').value;
+  const rows=importRows();
+  const exMac=new Map(),exIp=new Map();
+  S.entries.filter(e=>!e.deleted&&e.backend===target).forEach(e=>{const m=normMac(e.mac);if(m)exMac.set(m,e);const ip=(e.ip.split(',')[0]||'').trim();if(ip)exIp.set(ip,e);});
+  const seenMac=new Set(),seenIp=new Set();
+  IMP.preview=rows.map((r,i)=>{
+    const p={r,notes:[],status:'new',mac:'',ip:String(r.ip||'').trim(),host:'',descr:String(r.descr||'').trim(),scope:'',ex:null};
+    const bad=m=>{p.status='err';p.notes.push(m);};
+    const macRaw=String(r.mac||'').trim();
+    if(macRaw){p.mac=normMac(macRaw)||'';if(!p.mac)bad('MAC ungültig');}
+    else if(target!=='dnsmasq')bad('MAC fehlt');
+    const n=ipToInt(p.ip);if(n==null)bad(p.ip?'IP ungültig':'IP fehlt');
+    const h0=String(r.hostname||'').trim();p.host=HOST_RE.test(h0)||!h0?h0:cleanHost(h0);
+    if(p.host!==h0&&h0)p.notes.push('Hostname angepasst');
+    if(target!=='dnsmasq'&&n!=null){
+      if(fixed==='auto'){p.scope=autoScope(target,p.ip);if(!p.scope)bad('Kein passendes Netz');}
+      else{p.scope=fixed;const sc=(S.scopes[target]||[]).find(s=>s.id===fixed);if(sc&&sc.cidr&&!inCidr(sc.cidr,n))bad('Nicht im Netz '+sc.cidr.label);}
+      const sc=(S.scopes[target]||[]).find(s=>s.id===p.scope);
+      if(sc&&sc.pools.some(([a,b])=>n>=a&&n<=b))p.notes.push('liegt im dynamischen Bereich');
+    }
+    if(p.mac&&seenMac.has(p.mac))bad('MAC doppelt in der Liste');
+    if(p.ip&&seenIp.has(p.ip))bad('IP doppelt in der Liste');
+    if(p.mac)seenMac.add(p.mac);if(p.ip)seenIp.add(p.ip);
+    if(p.status!=='err'){
+      const ex=p.mac?exMac.get(p.mac):null;
+      if(ex){if(mode==='skip'){p.status='skip';p.notes.push('MAC schon vorhanden');}else{p.status='upd';p.ex=ex;}}
+      const owner=exIp.get(p.ip);
+      if(owner&&owner!==ex&&p.status!=='skip')bad('IP schon vergeben an '+(owner.hostname||owner.mac||'anderen Eintrag'));
+      if(p.status==='upd'&&ex&&ex.ip.trim()===p.ip&&ex.hostname.trim()===(p.host||ex.hostname.trim())&&(!p.descr||ex.descr.trim()===p.descr)&&(target==='dnsmasq'||ex.scope===p.scope)){p.status='skip';p.notes.push('unverändert');}
+    }
+    p.checked=IMP.override.has(i)?IMP.override.get(i):(p.status==='new'||p.status==='upd');
+    if(p.status==='err'||p.status==='skip')p.checked=false;
+    return p;
+  });
+  renderPreview(target);
+}
+function renderPreview(target){
+  const wrap=$('#impPrevWrap'),tbl=$('#impPrev');
+  const P=IMP.preview;
+  if(!P.length){wrap.hidden=true;$('#impSum').textContent=IMP.src==='convert'&&!$('#impConvSrc').value?'Keine andere Quelle vorhanden.':'Noch nichts zum Importieren.';$('#impApply').disabled=true;return;}
+  wrap.hidden=false;
+  const lbl={new:'Neu',upd:'Aktualisieren',skip:'Überspringen',err:'Fehler'};
+  const scLabel=id=>{const s=(S.scopes[target]||[]).find(x=>x.id===id);return s?s.short:'';};
+  tbl.innerHTML='<thead><tr><th style="width:36px"></th><th>Status</th><th>MAC-Adresse</th><th>IP-Adresse</th><th>Hostname</th><th>Beschreibung</th>'+(target!=='dnsmasq'?'<th>Netz</th>':'')+'<th>Hinweis</th></tr></thead><tbody>'+
+    P.map((p,i)=>'<tr class="'+p.status+'"><td><input type="checkbox" data-i="'+i+'"'+(p.checked?' checked':'')+(p.status==='err'||p.status==='skip'?' disabled':'')+' aria-label="Zeile übernehmen"></td><td><span class="pill '+p.status+'">'+lbl[p.status]+'</span></td><td class="mono">'+esc(p.mac||p.r.mac)+'</td><td class="mono">'+esc(p.ip)+'</td><td>'+esc(p.host)+'</td><td>'+esc(p.descr)+'</td>'+(target!=='dnsmasq'?'<td>'+esc(scLabel(p.scope))+'</td>':'')+'<td class="note'+(p.status==='err'?' err':'')+'">'+esc(p.notes.join(', '))+'</td></tr>').join('')+'</tbody>';
+  const k={new:0,upd:0,skip:0,err:0};P.forEach(p=>k[p.status]++);
+  const sel=P.filter(p=>p.checked).length;
+  const parts=[];if(k.new)parts.push(k.new+' neu');if(k.upd)parts.push(k.upd+' zu aktualisieren');if(k.skip)parts.push(k.skip+' übersprungen');if(k.err)parts.push(k.err+' mit Fehlern');
+  $('#impSum').textContent=P.length+' Zeilen: '+parts.join(', ');
+  const btn=$('#impApply');btn.disabled=!sel;btn.textContent=sel?sel+' Eintr'+(sel===1?'ag':'äge')+' übernehmen':'Übernehmen';
+}
+$('#impPrev').addEventListener('change',ev=>{const c=ev.target.closest('input[data-i]');if(!c)return;const i=+c.dataset.i;IMP.override.set(i,c.checked);IMP.preview[i].checked=c.checked;renderPreview($('#impTarget').value);});
+$('#impApply').addEventListener('click',()=>{
+  const target=$('#impTarget').value;const del=IMP.src==='convert'&&$('#impConvDel').checked;
+  let n=0;
+  IMP.preview.forEach(p=>{
+    if(!p.checked)return;n++;
+    if(p.status==='new'){S.entries.push({id:seq++,backend:target,scope:target==='dnsmasq'?'':p.scope,node:null,mac:p.mac,ip:p.ip,hostname:p.host,descr:p.descr,isNew:true,deleted:false,orig:null});}
+    else if(p.status==='upd'){const e=p.ex;e.ip=p.ip;if(p.host)e.hostname=p.host;if(p.descr)e.descr=p.descr;if(target!=='dnsmasq'&&p.scope)e.scope=p.scope;}
+    if(del&&p.r.src){const s=p.r.src;if(s.isNew)S.entries=S.entries.filter(x=>x!==s);else s.deleted=true;}
+  });
+  S.confirmErr=false;
+  if(Object.keys(S.backends).length>1)S.filter.backend=target;
+  S.filter.scope='all';S.filter.q='';$('#q').value='';
+  if(IMP.src==='paste'){$('#impText').value='';IMP.table=null;IMP.mapTouched=false;renderMapping();}
+  IMP.override.clear();closeImport();renderAll();
+  toast(n+' Eintr'+(n===1?'ag':'äge')+' übernommen. Mit „config.xml speichern“ wird die Datei erzeugt.');
+});
+
+/* ---------- loading ---------- */
+$('#file1').addEventListener('change',ev=>{const f=ev.target.files[0];ev.target.value='';if(f)openFile(f);});
+$('#file2').addEventListener('change',ev=>{const f=ev.target.files[0];ev.target.value='';if(f)openFile(f);});
+$('#pasteCfgBtn').addEventListener('click',()=>{const t=$('#pasteCfg').value;if(!t.trim())return;try{loadText(t,'config.xml');}catch(err){const b=$('#loadErr');b.textContent=err.message;b.hidden=false;}});
+const drop=$('#drop');
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,ev=>{ev.preventDefault();if(!$('#start').hidden)drop.classList.add('over');}));
+['dragleave','drop'].forEach(t=>document.addEventListener(t,ev=>{ev.preventDefault();if(t==='drop'||ev.target===document.documentElement)drop.classList.remove('over');}));
+document.addEventListener('drop',ev=>{const f=ev.dataTransfer&&ev.dataTransfer.files[0];if(!f)return;
+  if(!$('#imp').hidden&&IMP.src==='paste'&&/\.(csv|txt|tsv)$/i.test(f.name)){f.text().then(t=>{$('#impText').value=t;IMP.mapTouched=false;IMP.override.clear();parsePaste();buildPreview();});return;}
+  openFile(f);});
+
+let toastT=null;
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,5200);}
+
+window.__dhcpEditor={loadText,commit,get state(){return S;},validate};
+})();
+</script>
+</body>
+</html>
