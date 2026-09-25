@@ -1,0 +1,1324 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Config-Editor für pfSense und OPNsense</title>
+<style>
+:root{
+  --bg:#EDF1F0; --surface:#FFFFFF; --sunk:#E2E8E7; --ink:#17232A; --muted:#55656C; --line:#C9D4D3;
+  --accent:#0B6B6B; --accent-ink:#FFFFFF; --accent-soft:#D5E9E8;
+  --new:#2F7D4E; --chg:#2D5EA8; --del:#8A949A; --warn:#8F5500; --err:#B3261E; --err-bg:#FCE9E7;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono","Segoe UI Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#11181A; --surface:#182124; --sunk:#0E1416; --ink:#E3EBEC; --muted:#93A3A8; --line:#2B383B;
+    --accent:#4DB3AE; --accent-ink:#06201F; --accent-soft:#1B3534;
+    --new:#6CC18E; --chg:#83A8E4; --del:#6E7A80; --warn:#E3A84C; --err:#F2837A; --err-bg:#331A18;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11181A; --surface:#182124; --sunk:#0E1416; --ink:#E3EBEC; --muted:#93A3A8; --line:#2B383B;
+  --accent:#4DB3AE; --accent-ink:#06201F; --accent-soft:#1B3534;
+  --new:#6CC18E; --chg:#83A8E4; --del:#6E7A80; --warn:#E3A84C; --err:#F2837A; --err-bg:#331A18;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1320px;margin:0 auto;padding:0 clamp(12px,3vw,28px)}
+header.top{padding:22px 0 12px;display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+header.top h1{font-size:1.45rem;line-height:1.2;margin:0;font-weight:650;letter-spacing:-.01em}
+header.top p{margin:4px 0 0;color:var(--muted);max-width:66ch}
+.badge{display:inline-block;font-size:.8rem;font-weight:600;padding:1px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);margin-right:6px;vertical-align:1px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:.45rem .85rem;border-radius:7px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* start */
+#start{padding:8px 0 48px}
+.drop{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:clamp(22px,5vw,48px);display:grid;gap:22px;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:start}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop h2{font-size:1.9rem;line-height:1.15;margin:0 0 10px;font-weight:650;letter-spacing:-.02em;max-width:20ch}
+.drop p{margin:0 0 14px;color:var(--muted);max-width:52ch}
+.drop .how{font-size:.92rem;border-left:3px solid var(--accent);padding:2px 0 2px 14px}
+.drop .how p{margin:0 0 10px;color:var(--ink)}
+.drop .how p span{color:var(--muted)}
+.drop .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.err-box{background:var(--err-bg);color:var(--err);border-radius:8px;padding:10px 14px;margin-top:14px}
+.paste-cfg summary{cursor:pointer;color:var(--muted);font-size:.92rem}
+.paste-cfg textarea{width:100%;min-height:120px;margin:8px 0;font:13px/1.4 var(--mono);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px}
+@media (max-width:760px){.drop{grid-template-columns:1fr}.drop h2{font-size:1.5rem}}
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px;overflow-x:auto}
+.tabs button{border:0;background:none;padding:.6rem .9rem .55rem;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;font-weight:500}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs .n{font-size:.82rem;color:var(--muted);margin-left:5px}
+.tabs .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--chg);margin-left:6px;vertical-align:2px}
+/* app */
+.overview{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px;align-items:center}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:.28rem .8rem;cursor:pointer;font-size:.92rem}
+.chip b{font-weight:600;margin-left:5px}
+.chip small{color:var(--muted);margin-left:6px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip[aria-pressed="true"] small{color:inherit;opacity:.75}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar .search{flex:1 1 220px;min-width:180px;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:.45rem .7rem}
+.toolbar select,.panel select,.savebar select{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:.42rem .5rem;max-width:100%}
+.chk{display:inline-flex;gap:6px;align-items:center;font-size:.92rem;color:var(--muted);cursor:pointer}
+.spacer{flex:1}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-weight:500;font-size:.84rem;color:var(--muted);padding:.55rem .45rem;border-bottom:1px solid var(--line);background:var(--sunk);white-space:nowrap}
+th[data-sort]{cursor:pointer;user-select:none}
+th[data-sort]:hover{color:var(--ink)}
+th .arr{font-size:.75em;margin-left:3px}
+td{padding:.2rem .3rem;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+#tbody tr td:first-child{box-shadow:inset 4px 0 0 transparent;padding-left:10px}
+#tbody tr[data-change="new"] td:first-child{box-shadow:inset 4px 0 0 var(--new)}
+#tbody tr[data-change="chg"] td:first-child{box-shadow:inset 4px 0 0 var(--chg)}
+#tbody tr[data-change="del"] td:first-child{box-shadow:inset 4px 0 0 var(--del)}
+#tbody tr[data-change="del"] .in,#tbody tr[data-change="del"] .derived{text-decoration:line-through;color:var(--del)}
+#tbody tr[data-off="1"] .in{color:var(--muted)}
+.in{width:100%;border:1px solid transparent;background:transparent;padding:.38rem .4rem;border-radius:5px;min-width:0}
+.in:hover{border-color:var(--line)}
+.in:focus{outline:2px solid var(--accent);outline-offset:-1px;background:var(--surface)}
+.in:disabled{cursor:default}
+.in:disabled:hover{border-color:transparent}
+.mono{font-family:var(--mono);font-size:.88rem}
+select.in{padding:.36rem .2rem;cursor:pointer}
+.ck{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;display:block;margin:0 auto}
+.st{font-size:.82rem;line-height:1.3;color:var(--muted)}
+.st .l{display:block}
+.st .l.err{color:var(--err)}
+.st .l.warn{color:var(--warn)}
+.st .l.new{color:var(--new)}
+.st .l.chg{color:var(--chg)}
+.derived{font-size:.86rem;color:var(--muted);padding:0 .4rem;white-space:nowrap}
+.fixed{font-size:.86rem;color:var(--muted);padding:0 .4rem}
+.act{border:0;background:none;color:var(--muted);cursor:pointer;padding:.35rem .45rem;border-radius:5px;font-size:.86rem}
+.act:hover{color:var(--err);background:var(--err-bg)}
+#tbody tr[data-change="del"] .act:hover{color:var(--accent);background:var(--accent-soft)}
+.ord{display:flex;flex-direction:column;gap:1px}
+.ord button{border:0;background:none;color:var(--muted);cursor:pointer;line-height:1;padding:2px 6px;border-radius:4px;font-size:.75rem}
+.ord button:hover:not(:disabled){background:var(--accent-soft);color:var(--accent)}
+.ord button:disabled{opacity:.3;cursor:default}
+.empty{padding:34px 20px;text-align:center;color:var(--muted)}
+.empty p{margin:0 0 12px}
+.infoline{color:var(--muted);font-size:.9rem}
+/* panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px clamp(12px,2.5vw,22px);margin-bottom:16px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.panel h2{font-size:1.1rem;margin:0;font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px;flex-wrap:wrap}
+.seg button{border:0;background:var(--surface);padding:.42rem .85rem;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.hint{color:var(--muted);font-size:.9rem;margin:0 0 8px;max-width:78ch}
+.panel textarea{width:100%;min-height:130px;font:13px/1.45 var(--mono);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:.84rem;color:var(--muted)}
+label.f select{color:var(--ink);font-size:.95rem}
+.mapping{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.mapping label{display:flex;flex-direction:column;gap:2px;font-size:.8rem;color:var(--muted);background:var(--sunk);padding:6px 8px;border-radius:7px;max-width:210px}
+.mapping code{font-family:var(--mono);font-size:.8rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#impPrev{font-size:.88rem}
+#impPrev td{padding:.35rem .5rem}
+#impPrev tr.skip td,#impPrev tr.err td{color:var(--muted)}
+#impPrev .clip{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{display:inline-block;border-radius:4px;padding:0 6px;font-size:.8rem;font-weight:600}
+.pill.new{background:var(--accent-soft);color:var(--new)}
+.pill.upd{background:var(--accent-soft);color:var(--chg)}
+.pill.skip{background:var(--sunk);color:var(--muted)}
+.pill.err{background:var(--err-bg);color:var(--err)}
+.note{color:var(--muted);font-size:.83rem}
+.note.err{color:var(--err)}
+.imp-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.prevwrap{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.maprow{display:flex;gap:10px;flex-wrap:wrap}
+/* savebar */
+.savebar{position:sticky;bottom:0;z-index:5;margin-top:16px;background:var(--ink);color:var(--bg);border-radius:12px 12px 0 0;padding:12px clamp(12px,2.5vw,20px) calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -6px 24px rgba(0,0,0,.18)}
+.savebar .sum{flex:1 1 260px;font-size:.93rem}
+.savebar .sum .e{color:#FF9C92}
+.savebar .btn{background:transparent;color:var(--bg);border-color:rgba(127,127,127,.5)}
+.savebar .btn.primary{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+.savebar select{background:transparent;color:var(--bg);border-color:rgba(127,127,127,.5)}
+.savebar select option{color:#17232A;background:#fff}
+.savebar details{flex-basis:100%;font-size:.88rem;opacity:.92}
+.savebar details summary{cursor:pointer}
+.savebar details p{margin:6px 0;max-width:86ch}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--accent);color:var(--accent-ink);padding:.6rem 1rem;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:20;max-width:min(90vw,580px);font-size:.93rem}
+.toast[hidden]{display:none}
+footer.foot{color:var(--muted);font-size:.83rem;padding:24px 0 30px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Config-Editor für pfSense und OPNsense</h1>
+      <p id="fileinfo">DHCP-Reservierungen, Aliase und Firewallregeln in der config.xml bearbeiten, importieren und exportieren. Läuft komplett offline.</p>
+    </div>
+    <label class="btn" id="reloadBtn" hidden>Andere Datei laden<input type="file" id="file2" accept=".xml,.txt,text/xml" hidden></label>
+  </header>
+
+  <section id="start">
+    <div class="drop" id="drop">
+      <div>
+        <h2>config.xml laden und in Tabellen bearbeiten</h2>
+        <p>Die Datei wird nur in diesem Browser gelesen und verändert. Die Seite lädt nichts aus dem Internet und funktioniert ohne Verbindung.</p>
+        <div class="actions">
+          <label class="btn primary">config.xml auswählen<input type="file" id="file1" accept=".xml,.txt,text/xml" hidden></label>
+          <span class="note">oder die Datei hierher ziehen</span>
+        </div>
+        <div id="loadErr" class="err-box" hidden></div>
+        <details class="paste-cfg" style="margin-top:16px">
+          <summary>XML-Inhalt stattdessen einfügen</summary>
+          <textarea id="pasteCfg" spellcheck="false" placeholder="&lt;?xml version=&quot;1.0&quot;?&gt;&#10;&lt;pfsense&gt;…"></textarea>
+          <button class="btn" id="pasteCfgBtn">Eingefügten Inhalt laden</button>
+        </details>
+      </div>
+      <div class="how">
+        <p><strong>pfSense</strong><br><span>Diagnostics › Backup &amp; Restore › Download configuration as XML</span></p>
+        <p><strong>OPNsense</strong><br><span>System › Configuration › Backups › Download configuration</span></p>
+        <p><span>Die Sicherung ohne Verschlüsselung herunterladen. Unterstützt werden DHCP-Reservierungen (ISC, Kea, Dnsmasq), Aliase und die Firewallregeln der Interfaces.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="app" hidden>
+    <nav class="tabs" role="tablist" id="tabs"></nav>
+    <div class="overview" id="overview"></div>
+
+    <section class="panel" id="imp" hidden>
+      <div class="panel-head">
+        <h2 id="impTitle">Importieren</h2>
+        <button class="btn ghost" id="impClose">Schließen</button>
+      </div>
+      <div class="seg" role="tablist" id="impTabs">
+        <button role="tab" data-src="paste" aria-selected="true">Liste oder CSV</button>
+        <button role="tab" data-src="config" aria-selected="false">Aus anderer config.xml</button>
+        <button role="tab" data-src="convert" aria-selected="false" id="tabConvert">Aus anderem DHCP-Dienst</button>
+      </div>
+      <div data-pane="paste">
+        <p class="hint" id="impPasteHint"></p>
+        <textarea id="impText" spellcheck="false"></textarea>
+        <div class="row"><label class="btn">CSV- oder Textdatei wählen<input type="file" id="impFile" accept=".csv,.txt,.tsv,text/*" hidden></label></div>
+        <div class="mapping" id="impMap"></div>
+      </div>
+      <div data-pane="config" hidden>
+        <p class="hint">Eine zweite Konfiguration als Quelle, etwa beim Umzug von pfSense auf OPNsense. Die Datei bleibt geladen, du kannst nacheinander DHCP, Aliase und Regeln daraus übernehmen.</p>
+        <div class="row">
+          <label class="btn">Zweite config.xml wählen<input type="file" id="impCfg" accept=".xml,.txt,text/xml" hidden></label>
+          <span class="note" id="impCfgInfo"></span>
+        </div>
+      </div>
+      <div data-pane="convert" hidden>
+        <p class="hint">Kopiert Reservierungen innerhalb dieser Datei von einem DHCP-Dienst in einen anderen, etwa von ISC DHCP nach Kea oder Dnsmasq.</p>
+      </div>
+      <div id="impOpts"></div>
+      <div class="prevwrap" id="impPrevWrap" hidden><table id="impPrev"></table></div>
+      <div class="imp-actions">
+        <span class="note" id="impSum"></span>
+        <button class="btn primary" id="impApply" disabled>Übernehmen</button>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <input type="search" class="search" id="q" placeholder="Suchen" aria-label="Suchen">
+      <select id="fSub" aria-label="Weiter filtern" hidden></select>
+      <label class="chk"><input type="checkbox" id="fIssues"> Nur mit Hinweisen</label>
+      <span class="spacer"></span>
+      <button class="btn" id="csvBtn">Als CSV exportieren</button>
+      <button class="btn" id="addBtn">Eintrag hinzufügen</button>
+      <button class="btn primary" id="impBtn">Importieren</button>
+    </div>
+
+    <div class="tablewrap">
+      <table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+      <div class="empty" id="empty" hidden></div>
+    </div>
+    <datalist id="dl-addr"></datalist>
+    <datalist id="dl-port"></datalist>
+
+    <div class="savebar" id="savebar" hidden>
+      <div class="sum" id="saveSum"></div>
+      <button class="btn" id="discardBtn">Verwerfen</button>
+      <select id="saveWhat" aria-label="Was gespeichert wird"></select>
+      <button class="btn primary" id="saveBtn">Speichern</button>
+      <details>
+        <summary>So spielst du die Datei wieder ein</summary>
+        <p>Komplette config.xml: pfSense unter Diagnostics › Backup &amp; Restore › Restore Backup, OPNsense unter System › Configuration › Backups. Beim Einspielen einer kompletten Konfiguration startet die Firewall in der Regel neu.</p>
+        <p id="areaHelp">Bereichsdatei (nur pfSense): Enthält nur DHCP, Aliase oder Regeln. Beim Wiederherstellen unter „Restore area“ denselben Bereich wählen, dann wird nur dieser ersetzt.</p>
+        <p>Bewahre die Originaldatei auf, bis alles geprüft ist. Nach dem Speichern kannst du direkt weiterarbeiten.</p>
+        <p><button class="btn" id="copyBtn">XML in die Zwischenablage kopieren</button></p>
+      </details>
+    </div>
+  </section>
+
+  <footer class="foot">Alles wird lokal im Browser verarbeitet. Bereiche, die hier nicht angezeigt werden, bleiben unverändert.</footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+'use strict';
+/* ================= helpers ================= */
+const $=(s,r)=>(r||document).querySelector(s);
+const $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newUuid=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);});
+const norm=v=>typeof v==='string'?v.trim():v;
+let S=null,seq=1;
+
+function ipToInt(s){const m=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(s||'').trim());if(!m)return null;const p=m.slice(1).map(Number);if(p.some(x=>x>255))return null;return ((p[0]*16777216)+(p[1]<<16)+(p[2]<<8)+p[3])>>>0;}
+function intToIp(n){return [n>>>24,(n>>>16)&255,(n>>>8)&255,n&255].join('.');}
+function cidrOf(ip,bits){const n=ipToInt(ip);if(n==null||!(bits>=0&&bits<=32))return null;const mask=bits===0?0:(0xFFFFFFFF<<(32-bits))>>>0;const net=(n&mask)>>>0;return {net,mask,bits,bcast:(net|(~mask>>>0))>>>0,label:intToIp(net)+'/'+bits};}
+function inCidr(c,n){return !!c&&n!=null&&((n&c.mask)>>>0)===c.net;}
+function normMac(s){s=String(s||'').trim();if(!s||!/^[0-9a-fA-F:.\- ]+$/.test(s))return null;const h=s.toLowerCase().replace(/[^0-9a-f]/g,'');if(h.length!==12)return null;return h.match(/../g).join(':');}
+function cleanHost(h){return String(h||'').trim().replace(/[\s_.]+/g,'-').replace(/[^A-Za-z0-9-]/g,'').replace(/^-+|-+$/g,'').slice(0,63);}
+const HOST_RE=/^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+const ALIAS_RE=/^[A-Za-z0-9_]+$/;
+const isV4=t=>ipToInt(t)!=null;
+const isV4Cidr=t=>{const i=t.indexOf('/');if(i<0)return false;const b=t.slice(i+1);return isV4(t.slice(0,i))&&/^\d+$/.test(b)&&+b<=32;};
+const isV6=t=>/^[0-9a-f:.]+$/i.test(t)&&t.includes(':')&&(t.match(/::/g)||[]).length<=1;
+const isV6Cidr=t=>{const i=t.indexOf('/');if(i<0)return false;const b=t.slice(i+1);return isV6(t.slice(0,i))&&/^\d+$/.test(b)&&+b<=128;};
+const isV4Range=t=>{const p=t.split('-');return p.length===2&&isV4(p[0].trim())&&isV4(p[1].trim());};
+const isFqdn=t=>/^(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+\.?$/.test(t)&&/[A-Za-z]/.test(t);
+const isPort=t=>/^\d+$/.test(t)&&+t>=1&&+t<=65535;
+const isPortRange=t=>{const m=/^(\d+)\s*[:\-]\s*(\d+)$/.exec(t);return !!m&&isPort(m[1])&&isPort(m[2])&&+m[1]<=+m[2];};
+const toks=s=>String(s||'').split(/[\s,;|]+/).map(x=>x.trim()).filter(Boolean);
+function yes(v,def){v=String(v==null?'':v).trim().toLowerCase();if(!v)return def;return ['ja','j','yes','y','1','true','x','aktiv','an','on','wahr'].includes(v);}
+
+/* ---------- XML ---------- */
+function kids(el,tag){return el?[...el.children].filter(c=>!tag||c.tagName===tag):[];}
+function kid(el,tag){return el?([...el.children].find(c=>c.tagName===tag)||null):null;}
+function path(el,...tags){for(const t of tags){el=kid(el,t);if(!el)return null;}return el;}
+function txt(el,tag){const c=kid(el,tag);return c?c.textContent.trim():'';}
+function isOn(el,tag){const c=kid(el,tag);if(!c)return false;const v=c.textContent.trim().toLowerCase();return v===''||v==='1'||v==='yes'||v==='on'||v==='true';}
+function indentOf(el){const p=el.previousSibling;if(p&&p.nodeType===3){const m=/\n([ \t]*)$/.exec(p.nodeValue);if(m)return m[1];}return null;}
+function depthIndent(el){let d=0,e=el;while(e.parentNode&&e.parentNode.nodeType===1){d++;e=e.parentNode;}return S.unit.repeat(d);}
+function indOf(el){const i=indentOf(el);return i==null?depthIndent(el):i;}
+function insertChild(parent,el,after){
+  const d=S.doc;const els=kids(parent);
+  if(!after&&els.length)after=els[els.length-1];
+  if(after){const ind=indOf(after);const ref=after.nextSibling;parent.insertBefore(d.createTextNode('\n'+ind),ref);parent.insertBefore(el,ref);}
+  else{const pInd=indOf(parent);[...parent.childNodes].forEach(n=>{if(n.nodeType===3&&!n.nodeValue.trim())parent.removeChild(n);});parent.appendChild(d.createTextNode('\n'+pInd+S.unit));parent.appendChild(el);parent.appendChild(d.createTextNode('\n'+pInd));}
+}
+function removeEl(el){const p=el.previousSibling;if(p&&p.nodeType===3&&!p.nodeValue.trim())p.parentNode.removeChild(p);if(el.parentNode)el.parentNode.removeChild(el);}
+function reindent(el){
+  const ch=kids(el);if(!ch.length)return;
+  const ind=indOf(el),d=S.doc;
+  [...el.childNodes].forEach(n=>{if(n.nodeType===3&&!n.nodeValue.trim())el.removeChild(n);});
+  ch.forEach(c=>el.insertBefore(d.createTextNode('\n'+ind+S.unit),c));
+  el.appendChild(d.createTextNode('\n'+ind));
+  ch.forEach(reindent);
+}
+function setTxt(el,tag,val,cdata){
+  const d=S.doc;let c=kid(el,tag);
+  if(!c){c=d.createElement(tag);insertChild(el,c,null);}
+  const hadC=[...c.childNodes].some(n=>n.nodeType===4);
+  while(c.firstChild)c.removeChild(c.firstChild);
+  val=val==null?'':String(val);
+  if(val!=='')c.appendChild((hadC||cdata)&&!val.includes(']]>')?d.createCDATASection(val):d.createTextNode(val));
+}
+const ONV=()=>S.type==='pfsense'?'':'1';
+function setBool(el,tag,on){
+  const c=kid(el,tag);
+  if(on){if(c){if(!isOn(el,tag)){while(c.firstChild)c.removeChild(c.firstChild);if(ONV())c.textContent=ONV();}}else{const n=S.doc.createElement(tag);if(ONV())n.textContent=ONV();insertChild(el,n,null);}}
+  else if(c)removeEl(c);
+}
+function makeEl(tag,fields,withUuid){
+  const d=S.doc;const el=d.createElement(tag);
+  if(withUuid)el.setAttribute('uuid',newUuid());
+  fields.forEach(([t,v])=>{const c=d.createElement(t);if(v)c.appendChild(d.createTextNode(v));el.appendChild(c);});
+  return el;
+}
+function blankClone(tpl){
+  const c=tpl.cloneNode(true);
+  kids(c).forEach(ch=>{const had=kids(ch).length>0;const v=ch.textContent.trim();while(ch.firstChild)ch.removeChild(ch.firstChild);if(!had&&/^[01]$/.test(v))ch.appendChild(S.doc.createTextNode('0'));});
+  if(c.hasAttribute('uuid'))c.setAttribute('uuid',newUuid());
+  return c;
+}
+function lastOf(parent,tag){const l=kids(parent,tag);return l.length?l[l.length-1]:null;}
+function serialize(node){
+  let out=new XMLSerializer().serializeToString(node);
+  if(S.type==='pfsense')out=out.replace(/<([A-Za-z_][\w.\-]*)((?:\s+[\w.\-:]+="[^"]*")*)\s*\/>/g,'<$1$2></$1>');
+  return out;
+}
+function mk(mod,node,f){const it=Object.assign({id:seq++,node,isNew:false,deleted:false,moved:false},f);it.orig=snap(mod,it);return it;}
+function snap(mod,it){const o={};mod.fields.forEach(k=>o[k]=it[k]);return o;}
+function isChanged(mod,it){return !it.isNew&&!it.deleted&&(it.moved||mod.fields.some(k=>norm(it[k])!==norm(it.orig[k])));}
+function ifLabelIn(M,k){const i=M.interfaces.find(x=>x.key===k);if(i)return i.descr;return ({floating:'Floating',openvpn:'OpenVPN',enc0:'IPsec',ipsec:'IPsec',wireguard:'WireGuard',l2tp:'L2TP',pppoe:'PPPoE-Server',lo0:'Loopback'})[k]||String(k).toUpperCase();}
+const ifLabel=k=>ifLabelIn(S,k);
+function sel(key,label,opts,val){return '<label class="f">'+esc(label)+'<select data-o="'+esc(key)+'">'+opts.map(([v,l])=>'<option value="'+esc(v)+'"'+(String(v)===String(val)?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';}
+function chk(key,label,val){return '<label class="chk"><input type="checkbox" data-o="'+esc(key)+'"'+(val?' checked':'')+'> '+esc(label)+'</label>';}
+
+/* ================= DHCP ================= */
+const DHCP={
+  key:'dhcp',label:'DHCP-Reservierungen',short:'DHCP',one:'Reservierung',many:'Reservierungen',
+  fields:['scope','mac','ip','hostname','descr'],allowAll:true,canConvert:()=>Object.keys(S.data.dhcp.backends).length>1,
+  parse(M){
+    const D={items:[],scopes:{isc:[],kea:[]},backends:{}};
+    const root=M.root,f=(b,scope,node,x)=>D.items.push(mk(DHCP,node,Object.assign({backend:b,scope:scope||''},x)));
+    const dh=kid(root,'dhcpd');
+    M.interfaces.forEach(i=>{if(!i.cidr)return;const sec=kid(dh,i.key);const r=kid(sec,'range');const a=ipToInt(txt(r,'from')),b=ipToInt(txt(r,'to'));
+      D.scopes.isc.push({id:i.key,label:i.descr+' ('+i.cidr.label+')',short:i.descr,cidr:i.cidr,ifip:ipToInt(i.ip),pools:(a!=null&&b!=null)?[[a,b]]:[],enabled:!!(sec&&kid(sec,'enable'))});});
+    let iscEn=false;
+    kids(dh).forEach(sec=>{
+      if(kid(sec,'enable'))iscEn=true;
+      if(!D.scopes.isc.some(s=>s.id===sec.tagName)&&kids(sec,'staticmap').length){const i=M.interfaces.find(x=>x.key===sec.tagName);D.scopes.isc.push({id:sec.tagName,label:(i?i.descr:sec.tagName)+' (ohne feste Adresse)',short:i?i.descr:sec.tagName,cidr:null,ifip:null,pools:[]});}
+      kids(sec,'staticmap').forEach(sm=>f('isc',sec.tagName,sm,{mac:txt(sm,'mac'),ip:txt(sm,'ipaddr'),hostname:txt(sm,'hostname'),descr:txt(sm,'descr')}));
+    });
+    if(M.type==='pfsense'||dh)D.backends.isc={label:M.type==='pfsense'?'DHCP-Server':'ISC DHCP',enabled:iscEn};
+    const opn=kid(root,'OPNsense');const kea4=path(opn,'Kea','dhcp4');
+    if(kea4){
+      kids(kid(kea4,'subnets'),'subnet4').forEach(s=>{
+        const sub=txt(s,'subnet');const [a,b]=sub.split('/');const c=cidrOf(a,parseInt(b,10));
+        const pools=txt(s,'pools').split(/[\n,]+/).map(p=>p.trim()).filter(Boolean).map(p=>{if(p.includes('-')){const [x,y]=p.split('-').map(z=>ipToInt(z.trim()));return (x!=null&&y!=null)?[x,y]:null;}const [pa,pb]=p.split('/');const pc=cidrOf(pa,parseInt(pb,10));return pc?[pc.net,pc.bcast]:null;}).filter(Boolean);
+        const ds=txt(s,'description');
+        D.scopes.kea.push({id:s.getAttribute('uuid')||'',label:sub+(ds?' ('+ds+')':''),short:ds||sub,cidr:c,ifip:null,pools});
+      });
+      kids(kid(kea4,'reservations'),'reservation').forEach(r=>f('kea',txt(r,'subnet'),r,{mac:txt(r,'hw_address'),ip:txt(r,'ip_address'),hostname:txt(r,'hostname'),descr:txt(r,'description')}));
+      D.backends.kea={label:'Kea DHCP',enabled:txt(kid(kea4,'general'),'enabled')==='1'};
+    }
+    const dmq=kid(opn,'dnsmasq');
+    if(dmq){kids(dmq,'hosts').forEach(h=>f('dnsmasq','',h,{mac:txt(h,'hwaddr'),ip:txt(h,'ip'),hostname:txt(h,'host'),descr:txt(h,'descr')}));D.backends.dnsmasq={label:'Dnsmasq',enabled:txt(dmq,'enable')==='1'};}
+    M.data.dhcp=D;
+  },
+  D(){return S.data.dhcp;},
+  defBackend(){
+    const D=this.D();const b=Object.entries(D.backends);if(!b.length)return 'isc';
+    const en=b.filter(([,v])=>v.enabled);const pool=en.length?en:b;
+    const n=k=>D.items.filter(e=>e.backend===k).length;
+    pool.sort((x,y)=>n(y[0])-n(x[0]));return pool[0][0];
+  },
+  defaultGroup(){return Object.keys(this.D().backends).length>1?this.defBackend():'all';},
+  groups(){const D=this.D();const bes=Object.keys(D.backends);if(bes.length<2)return null;
+    return bes.map(b=>({id:b,label:D.backends[b].label,count:D.items.filter(e=>e.backend===b&&!e.deleted).length,note:D.backends[b].enabled?'aktiv':''}));},
+  groupOf:it=>it.backend,
+  summary(){const D=this.D();const n=D.items.filter(e=>!e.deleted).length;return n+' '+(n===1?'Reservierung':'Reservierungen')+'. Interfaces mit fester IPv4-Adresse: '+(D.scopes.isc.filter(s=>s.cidr).map(s=>s.short).join(', ')||'keine');},
+  subgroups(g){const D=this.D();const bes=Object.keys(D.backends);const b=g==='all'?(bes.length===1?bes[0]:null):g;if(b!=='isc'&&b!=='kea')return null;return D.scopes[b].map(s=>({id:s.id,label:s.label}));},
+  subOf:it=>it.scope,subAll:'Alle Netze',
+  search:it=>[it.mac,it.ip,it.hostname,it.descr],
+  scopeFor(e){const D=this.D();if(e.backend==='dnsmasq'){const n=ipToInt((e.ip.split(',')[0]||'').trim());return D.scopes.isc.find(s=>inCidr(s.cidr,n))||null;}return (D.scopes[e.backend]||[]).find(s=>s.id===e.scope)||null;},
+  autoScope(backend,ip){if(backend==='dnsmasq')return '';const n=ipToInt(ip);if(n==null)return '';const s=(this.D().scopes[backend]||[]).find(s=>inCidr(s.cidr,n));return s?s.id:'';},
+  columns(v){
+    const D=this.D();const multi=Object.keys(D.backends).length>1&&v.group==='all';
+    return [
+      {k:'st',kind:'status',label:'Status',w:180},
+      ...(multi?[{k:'backend',kind:'fixed',label:'Dienst',w:90,get:it=>D.backends[it.backend].label,sort:it=>it.backend}]:[]),
+      {k:'scope',label:v.group==='kea'?'Subnetz':'Interface',w:170,kind:it=>it.backend==='dnsmasq'?'derived':'select',
+        get:it=>{const s=this.scopeFor(it);return s?s.short:'–';},
+        opts:it=>(D.scopes[it.backend]||[]).map(s=>[s.id,s.short+(s.cidr?' '+s.cidr.label:'')]),missing:it=>it.scope?'unbekannt':'Bitte wählen',
+        sort:it=>{const s=this.scopeFor(it);return s?s.short.toLowerCase():'';}},
+      {k:'mac',kind:'mono',label:'MAC-Adresse',w:160,sort:it=>it.mac.toLowerCase()},
+      {k:'ip',kind:'mono',label:'IP-Adresse',w:135,sort:it=>ipToInt((it.ip.split(',')[0]||'').trim())??4294967296,attrs:'inputmode="decimal"'},
+      {k:'hostname',kind:'text',label:'Hostname',w:170,sort:it=>it.hostname.toLowerCase()},
+      {k:'descr',kind:'text',label:'Beschreibung',sort:it=>it.descr.toLowerCase()},
+      {k:'del',kind:'del',w:105}
+    ];
+  },
+  defaultSort:'ip',
+  validate(items,out){
+    const live=items.filter(e=>!e.deleted);const byIp=new Map(),byMac=new Map(),byHost=new Map();
+    const add=(m,k,e)=>{if(!m.has(k))m.set(k,[]);m.get(k).push(e);};
+    const first=e=>e.backend==='dnsmasq'?(e.ip.split(',')[0]||'').trim():e.ip.trim();
+    live.forEach(e=>{const ip=first(e);if(ip)add(byIp,e.backend+'|'+ip,e);const m=normMac(e.mac);if(m)add(byMac,e.backend+'|'+(e.backend==='dnsmasq'?'':e.scope)+'|'+m,e);if(e.hostname.trim())add(byHost,e.backend+'|'+e.hostname.trim().toLowerCase(),e);});
+    live.forEach(e=>{
+      const is=[];const E=m=>is.push({lvl:'err',m}),W=m=>is.push({lvl:'warn',m});
+      const macRaw=e.mac.trim();
+      if(!macRaw){if(e.backend!=='dnsmasq')E('MAC-Adresse fehlt');}
+      else if(e.backend==='dnsmasq'){if(!macRaw.split(',').every(x=>normMac(x)))E('MAC-Adresse ungültig');}
+      else if(!normMac(macRaw))E('MAC-Adresse ungültig');
+      const ipRaw=e.ip.trim();let n=null;
+      if(!ipRaw)E('IP-Adresse fehlt');
+      else if(e.backend==='dnsmasq'){const parts=ipRaw.split(',').map(x=>x.trim()).filter(Boolean);if(!parts.every(x=>isV4(x)||isV6(x)))E('IP-Adresse ungültig');const v4=parts.find(isV4);n=v4?ipToInt(v4):null;}
+      else{n=ipToInt(ipRaw);if(n==null)E('IP-Adresse ungültig');}
+      if(e.backend!=='dnsmasq'){
+        const sc=this.scopeFor(e);
+        if(!sc)E(e.backend==='kea'?'Kein Subnetz gewählt':'Kein Interface gewählt');
+        else if(n!=null&&sc.cidr){
+          if(!inCidr(sc.cidr,n))E('IP liegt nicht im Netz '+sc.cidr.label);
+          else if(sc.cidr.bits<31&&(n===sc.cidr.net||n===sc.cidr.bcast))E('Netz- oder Broadcast-Adresse');
+          if(sc.ifip!=null&&sc.ifip===n)E('Das ist die Adresse der Firewall');
+          if(e.backend==='isc'&&sc.enabled===false)W('DHCP-Server auf diesem Interface ist aus');
+          if(sc.pools.some(([a,b])=>n>=a&&n<=b))W(S.type==='pfsense'?'Im dynamischen Bereich (pfSense erlaubt das in der Oberfläche nicht)':'Liegt im dynamischen Bereich');
+        }
+      }
+      const h=e.hostname.trim();
+      if(h&&!HOST_RE.test(h))E('Hostname nur mit Buchstaben, Ziffern und Bindestrich');
+      const ip=first(e);
+      if(ip&&(byIp.get(e.backend+'|'+ip)||[]).length>1)E('IP doppelt vergeben');
+      const m=normMac(e.mac);if(m&&(byMac.get(e.backend+'|'+(e.backend==='dnsmasq'?'':e.scope)+'|'+m)||[]).length>1)E('MAC doppelt eingetragen');
+      if(h&&(byHost.get(e.backend+'|'+h.toLowerCase())||[]).length>1)W('Hostname mehrfach vorhanden');
+      out.set(e.id,is);
+    });
+  },
+  onBlur(it,f){
+    const upd=[];
+    if(f==='mac'&&it.backend!=='dnsmasq'){const m=normMac(it.mac);if(m&&m!==it.mac){it.mac=m;upd.push('mac');}}
+    if(f==='ip'&&it.backend!=='dnsmasq'){const sc=this.scopeFor(it);const n=ipToInt(it.ip);if(n!=null&&!(sc&&inCidr(sc.cidr,n))){const a=this.autoScope(it.backend,it.ip);if(a&&(it.isNew||!sc)){it.scope=a;upd.push('scope');}}}
+    return upd;
+  },
+  newItem(v){
+    const D=this.D();const b=v.group!=='all'?v.group:this.defBackend();
+    const list=D.scopes[b]||[];
+    const scope=b==='dnsmasq'?'':(v.sub!=='all'?v.sub:((list.find(s=>s.id==='lan')||list[0]||{}).id||''));
+    return {backend:b,scope,mac:'',ip:'',hostname:'',descr:''};
+  },
+  write(e,all){
+    const n=e.node,o=e.orig||{};const ch=k=>all||norm(e[k])!==norm(o[k]);
+    const mac=e.backend==='dnsmasq'?e.mac.trim():(normMac(e.mac)||e.mac.trim());
+    if(e.backend==='isc'){if(ch('mac'))setTxt(n,'mac',mac);if(ch('ip'))setTxt(n,'ipaddr',e.ip.trim());if(ch('hostname'))setTxt(n,'hostname',e.hostname.trim());if(ch('descr'))setTxt(n,'descr',e.descr.trim(),true);}
+    else if(e.backend==='kea'){if(ch('scope'))setTxt(n,'subnet',e.scope);if(ch('mac'))setTxt(n,'hw_address',mac);if(ch('ip'))setTxt(n,'ip_address',e.ip.trim());if(ch('hostname'))setTxt(n,'hostname',e.hostname.trim());if(ch('descr'))setTxt(n,'description',e.descr.trim());}
+    else{if(ch('mac'))setTxt(n,'hwaddr',mac);if(ch('ip'))setTxt(n,'ip',e.ip.trim());if(ch('hostname'))setTxt(n,'host',e.hostname.trim());if(ch('descr'))setTxt(n,'descr',e.descr.trim());}
+    e.mac=mac;
+    if(!all&&e.backend==='isc'&&e.scope!==o.scope){const sec=this.iscSection(e.scope);removeEl(n);insertChild(sec,n,lastOf(sec,'staticmap'));reindent(n);}
+  },
+  iscSection(key){let dh=kid(S.root,'dhcpd');if(!dh){dh=S.doc.createElement('dhcpd');insertChild(S.root,dh,null);}let sec=kid(dh,key);if(!sec){sec=S.doc.createElement(key);insertChild(dh,sec,null);}return sec;},
+  create(e){
+    let parent,node,after;
+    if(e.backend==='isc'){parent=this.iscSection(e.scope);const tpl=S.root.querySelector('dhcpd > * > staticmap');node=tpl?blankClone(tpl):makeEl('staticmap',[['mac'],['cid'],['ipaddr'],['hostname'],['descr']]);after=lastOf(parent,'staticmap');}
+    else if(e.backend==='kea'){const kea4=path(S.root,'OPNsense','Kea','dhcp4');parent=kid(kea4,'reservations');if(!parent){parent=S.doc.createElement('reservations');insertChild(kea4,parent,null);}const tpl=kid(parent,'reservation');node=tpl?blankClone(tpl):makeEl('reservation',[['subnet'],['ip_address'],['hw_address'],['hostname'],['description']],true);after=lastOf(parent,'reservation');}
+    else{parent=path(S.root,'OPNsense','dnsmasq');const tpl=kid(parent,'hosts');node=tpl?blankClone(tpl):makeEl('hosts',[['host'],['domain'],['local','0'],['ip'],['cnames'],['client_id'],['hwaddr'],['lease_time'],['ignore','0'],['set_tag'],['descr'],['comments'],['aliases']],true);after=lastOf(parent,'hosts');}
+    insertChild(parent,node,after);reindent(node);e.node=node;this.write(e,true);
+  },
+  csv:{head:['Dienst','Netz','MAC','IP','Hostname','Beschreibung'],row(it){const s=DHCP.scopeFor(it);return [DHCP.D().backends[it.backend].label,s?s.short:'',it.mac,it.ip,it.hostname,it.descr];}},
+  /* import */
+  impFields:[['mac','MAC-Adresse'],['ip','IP-Adresse'],['hostname','Hostname'],['descr','Beschreibung']],
+  pasteHint:'Eine Zeile pro Gerät, etwa aus Excel kopiert oder als CSV. Trennzeichen und Spalten werden erkannt. MAC-Adressen dürfen in jeder üblichen Schreibweise vorliegen.',
+  placeholder:'MAC;IP;Hostname;Beschreibung\naa:bb:cc:dd:ee:01;192.168.1.50;drucker-buero;Drucker Büro\nAA-BB-CC-DD-EE-02;192.168.1.51;nas;Synology',
+  headerKey(h){h=h.toLowerCase().trim();
+    if(/mac|hw.?addr|hardware/.test(h))return 'mac';
+    if(/^(ip|ipv4|ip.?adresse|ip.?address|ip_address|adresse|address|ipaddr)$/.test(h))return 'ip';
+    if(/beschr|descr|kommentar|comment|notiz|bemerk|description/.test(h))return 'descr';
+    if(/host|^name$|gerät|geraet|device|computer/.test(h))return 'hostname';
+    return '';},
+  autoMap(table,ncol){
+    const mapping=new Array(ncol).fill('');const body=table.slice(0,30);const score=(i,fn)=>body.filter(r=>fn(r[i]||'')).length;
+    const idx=[...Array(ncol).keys()];
+    const macCol=idx.slice().sort((a,b)=>score(b,v=>normMac(v))-score(a,v=>normMac(v)))[0];
+    const ipCol=idx.filter(i=>i!==macCol).sort((a,b)=>score(b,isV4)-score(a,isV4))[0];
+    if(score(macCol,v=>normMac(v)))mapping[macCol]='mac';
+    if(ipCol!=null&&score(ipCol,isV4))mapping[ipCol]='ip';
+    const rest=idx.filter(i=>!mapping[i]);if(rest[0]!=null)mapping[rest[0]]='hostname';if(rest[1]!=null)mapping[rest[1]]='descr';
+    return mapping;
+  },
+  renderImpOpts(box,src){
+    const D=this.D(),o=impO();const bes=Object.keys(D.backends);const v=S.view.dhcp;
+    if(!bes.includes(o.target))o.target=(v.group!=='all'&&bes.includes(v.group))?v.group:this.defBackend();
+    if(!o.scope)o.scope='auto';if(!o.mode)o.mode='update';
+    let h='<div class="row">';
+    if(src==='config'&&IMP.cfg){const C=IMP.cfg.data.dhcp;const cb=Object.keys(C.backends).filter(b=>C.items.some(e=>e.backend===b));if(!cb.includes(o.cfgBe))o.cfgBe=cb[0]||'';
+      if(cb.length>1)h+=sel('cfgBe','Quelle in der zweiten Datei',cb.map(b=>[b,C.backends[b].label+' ('+C.items.filter(e=>e.backend===b).length+')']),o.cfgBe);}
+    if(src==='convert'){const others=bes.filter(b=>b!==o.target);if(!others.includes(o.convSrc))o.convSrc=others[0]||'';
+      h+=sel('convSrc','Quelle',others.map(b=>[b,D.backends[b].label+' ('+D.items.filter(e=>e.backend===b&&!e.deleted).length+')']),o.convSrc);}
+    h+=sel('target','Ziel',bes.map(b=>[b,D.backends[b].label+(D.backends[b].enabled?' (aktiv)':'')]),o.target);
+    if(o.target!=='dnsmasq'){const sc=D.scopes[o.target]||[];if(o.scope!=='auto'&&!sc.some(s=>s.id===o.scope))o.scope='auto';h+=sel('scope','Interface oder Subnetz',[['auto','Automatisch nach IP-Adresse']].concat(sc.map(s=>[s.id,s.label])),o.scope);}
+    h+=sel('mode','Wenn die MAC-Adresse schon eingetragen ist',[['update','vorhandenen Eintrag aktualisieren'],['skip','Zeile überspringen']],o.mode);
+    if(src==='convert')h+=chk('convDel','Einträge in der Quelle danach entfernen',o.convDel);
+    box.innerHTML=h+'</div>';
+  },
+  onImpOpt(key){return key==='target';},
+  rowsFromConfig(M){const o=impO();return M.data.dhcp.items.filter(e=>!o.cfgBe||e.backend===o.cfgBe).map(e=>({mac:e.mac,ip:(e.ip.split(',')[0]||'').trim(),hostname:e.hostname,descr:e.descr}));},
+  rowsFromConvert(){const o=impO();return this.D().items.filter(e=>e.backend===o.convSrc&&!e.deleted).map(e=>({mac:e.mac,ip:(e.ip.split(',')[0]||'').trim(),hostname:e.hostname,descr:e.descr,src:e}));},
+  previewHead(){return ['MAC-Adresse','IP-Adresse','Hostname','Beschreibung','Netz'];},
+  preview(rows){
+    const D=this.D(),o=impO();const target=o.target,fixed=target==='dnsmasq'?'auto':(o.scope||'auto'),mode=o.mode;
+    const exMac=new Map(),exIp=new Map();
+    D.items.filter(e=>!e.deleted&&e.backend===target).forEach(e=>{const m=normMac(e.mac);if(m)exMac.set(m,e);const ip=(e.ip.split(',')[0]||'').trim();if(ip)exIp.set(ip,e);});
+    const seenMac=new Set(),seenIp=new Set();
+    return rows.map(r=>{
+      const p={r,notes:[],status:'new',mac:'',ip:String(r.ip||'').trim(),host:'',descr:String(r.descr||'').trim(),scope:'',ex:null};
+      const bad=m=>{p.status='err';p.notes.push(m);};
+      const macRaw=String(r.mac||'').trim();
+      if(macRaw){p.mac=normMac(macRaw)||'';if(!p.mac)bad('MAC ungültig');}else if(target!=='dnsmasq')bad('MAC fehlt');
+      const n=ipToInt(p.ip);if(n==null)bad(p.ip?'IP ungültig':'IP fehlt');
+      const h0=String(r.hostname||'').trim();p.host=(!h0||HOST_RE.test(h0))?h0:cleanHost(h0);if(h0&&p.host!==h0)p.notes.push('Hostname angepasst');
+      if(target!=='dnsmasq'&&n!=null){
+        if(fixed==='auto'){p.scope=this.autoScope(target,p.ip);if(!p.scope)bad('Kein passendes Netz');}
+        else{p.scope=fixed;const sc=(D.scopes[target]||[]).find(s=>s.id===fixed);if(sc&&sc.cidr&&!inCidr(sc.cidr,n))bad('Nicht im Netz '+sc.cidr.label);}
+        const sc=(D.scopes[target]||[]).find(s=>s.id===p.scope);if(sc&&sc.pools.some(([a,b])=>n>=a&&n<=b))p.notes.push('im dynamischen Bereich');
+      }
+      if(p.mac&&seenMac.has(p.mac))bad('MAC doppelt in der Liste');
+      if(p.ip&&seenIp.has(p.ip))bad('IP doppelt in der Liste');
+      if(p.mac)seenMac.add(p.mac);if(p.ip)seenIp.add(p.ip);
+      if(p.status!=='err'){
+        const ex=p.mac?exMac.get(p.mac):null;
+        if(ex){if(mode==='skip'){p.status='skip';p.notes.push('MAC schon vorhanden');}else{p.status='upd';p.ex=ex;}}
+        const owner=exIp.get(p.ip);
+        if(owner&&owner!==ex&&p.status!=='skip')bad('IP schon vergeben an '+(owner.hostname||owner.mac||'anderen Eintrag'));
+        if(p.status==='upd'&&ex.ip.trim()===p.ip&&(!p.host||ex.hostname.trim()===p.host)&&(!p.descr||ex.descr.trim()===p.descr)&&(target==='dnsmasq'||ex.scope===p.scope)){p.status='skip';p.notes.push('unverändert');}
+      }
+      const sc=(D.scopes[target]||[]).find(s=>s.id===p.scope);
+      p.cells=[[p.mac||macRaw,'mono'],[p.ip,'mono'],[p.host],[p.descr,'clip'],[target==='dnsmasq'?'–':(sc?sc.short:'')]];
+      return p;
+    });
+  },
+  apply(list){
+    const D=this.D(),o=impO();const target=o.target;
+    list.forEach(p=>{
+      if(p.status==='new')D.items.push(newIt(DHCP,{backend:target,scope:target==='dnsmasq'?'':p.scope,mac:p.mac,ip:p.ip,hostname:p.host,descr:p.descr}));
+      else if(p.status==='upd'){const e=p.ex;e.ip=p.ip;if(p.host)e.hostname=p.host;if(p.descr)e.descr=p.descr;if(target!=='dnsmasq'&&p.scope)e.scope=p.scope;}
+      if(o.convDel&&p.r.src){const s=p.r.src;if(s.isNew)D.items=D.items.filter(x=>x!==s);else s.deleted=true;}
+    });
+    if(Object.keys(D.backends).length>1){S.view.dhcp.group=target;S.view.dhcp.sub='all';}
+    return list.length;
+  }
+};
+
+/* ================= ALIASE ================= */
+const TYPE_LABEL={host:'Host(s)',network:'Netzwerk(e)',port:'Port(s)',url:'URL (IPs)',url_ports:'URL (Ports)',urltable:'URL-Tabelle',urltable_ports:'URL-Tabelle (Ports)',geoip:'GeoIP',networkgroup:'Netzwerkgruppe',mac:'MAC-Adressen',asn:'ASN',dynipv6host:'Dyn. IPv6-Host',authgroup:'Benutzergruppe',internal:'Intern',external:'Extern'};
+const CAT_LABEL={host:'Hosts',network:'Netzwerke',port:'Ports',url:'URL-Listen',other:'Weitere',system:'System'};
+function aliasCat(t){if(t==='host')return 'host';if(t==='network'||t==='networkgroup')return 'network';if(t==='port')return 'port';if(/^url/.test(t))return 'url';if(t==='internal'||t==='external')return 'system';return 'other';}
+function aliasTypes(){return S.type==='pfsense'?['host','network','port']:['host','network','port','url','urltable','geoip','networkgroup','mac','asn','dynipv6host','authgroup'];}
+function aliasTokIssues(type,list,self,names){
+  const errs=[],warns=[];
+  const ref=(t,kinds)=>{const a=names.get(t);if(a){if(kinds&&!kinds.includes(aliasCat(a.type)))errs.push('Alias '+t+' hat falschen Typ');return true;}return false;};
+  list.forEach(t=>{
+    if(t===self){errs.push('Verweist auf sich selbst');return;}
+    if(type==='host'){if(isV4(t)||isV6(t)||isV4Range(t)||isFqdn(t)||ref(t,['host','network','url','other','system']))return;}
+    else if(type==='network'){if(isV4(t)||isV4Cidr(t)||isV6(t)||isV6Cidr(t)||isV4Range(t)||isFqdn(t)||ref(t,['host','network','url','other','system']))return;}
+    else if(type==='port'){if(isPort(t)||isPortRange(t)||ref(t,['port']))return;}
+    else if(type==='networkgroup'){if(ref(t,null))return;if(ALIAS_RE.test(t)){warns.push('Alias '+t+' nicht gefunden');return;}}
+    else return;
+    if(ALIAS_RE.test(t)&&!/^\d+$/.test(t))warns.push('Alias '+t+' nicht gefunden');else errs.push('Ungültig: '+t);
+  });
+  return {errs,warns};
+}
+const ALIAS={
+  key:'alias',label:'Aliase',short:'Aliase',one:'Alias',many:'Aliase',
+  fields:['name','type','content','descr','enabled'],allowAll:true,defaultSort:'name',
+  parse(M){
+    const items=[];let store='legacy';
+    const mvc=M.type==='opnsense'?path(M.root,'OPNsense','Firewall','Alias'):null;
+    if(mvc){store='mvc';
+      kids(kid(mvc,'aliases'),'alias').forEach(a=>{const type=txt(a,'type');items.push(mk(ALIAS,a,{name:txt(a,'name'),type,content:txt(a,'content').split(/\n/).map(s=>s.trim()).filter(Boolean).join(' '),descr:txt(a,'description'),enabled:txt(a,'enabled')!=='0',locked:type==='internal'||type==='external',store}));});}
+    else{
+      kids(kid(M.root,'aliases'),'alias').forEach(a=>{const type=txt(a,'type');const urlT=/^url/.test(type);
+        const content=urlT?[txt(a,'url'),...kids(a,'aliasurl').map(x=>x.textContent.trim())].filter(Boolean).join(' '):txt(a,'address').split(/\s+/).filter(Boolean).join(' ');
+        items.push(mk(ALIAS,a,{name:txt(a,'name'),type,content,descr:txt(a,'descr'),enabled:true,roContent:urlT,store,detail:txt(a,'detail')}));});
+    }
+    M.data.alias={items,store};
+  },
+  D(){return S.data.alias;},
+  defaultGroup:()=>'all',
+  groups(){const it=this.D().items.filter(a=>!a.deleted);const cats=['host','network','port','url','other','system'].filter(c=>it.some(a=>aliasCat(a.type)===c));if(cats.length<2)return null;return cats.map(c=>({id:c,label:CAT_LABEL[c],count:it.filter(a=>aliasCat(a.type)===c).length}));},
+  groupOf:it=>aliasCat(it.type),
+  summary(){const n=this.D().items.filter(a=>!a.deleted).length;return n+' '+(n===1?'Alias':'Aliase')+'.';},
+  subgroups:()=>null,
+  search:it=>[it.name,it.content,it.descr],
+  columns(){
+    const mvc=this.D().store==='mvc';
+    return [
+      {k:'st',kind:'status',label:'Status',w:190},
+      ...(mvc?[{k:'enabled',kind:'check',label:'Aktiv',w:52}]:[]),
+      {k:'name',kind:'mono',label:'Name',w:190,sort:it=>it.name.toLowerCase(),ro:it=>it.locked},
+      {k:'type',kind:'select',label:'Typ',w:150,opts:()=>aliasTypes().map(t=>[t,TYPE_LABEL[t]||t]),missing:it=>TYPE_LABEL[it.type]||it.type,ro:it=>it.locked||it.roContent,sort:it=>it.type},
+      {k:'content',kind:'mono',label:'Inhalt (durch Leerzeichen getrennt)',ro:it=>it.locked||it.roContent},
+      {k:'count',kind:'derived',label:'Anzahl',w:70,get:it=>String(toks(it.content).length),sort:it=>toks(it.content).length},
+      {k:'descr',kind:'text',label:'Beschreibung',w:220,ro:it=>it.locked,sort:it=>it.descr.toLowerCase()},
+      {k:'del',kind:'del',w:105}
+    ];
+  },
+  validate(items,out){
+    const live=items.filter(a=>!a.deleted);const names=S.aliasMap;const cnt=new Map();
+    live.forEach(a=>{const k=a.name.trim().toLowerCase();if(k)cnt.set(k,(cnt.get(k)||0)+1);});
+    const max=S.type==='pfsense'?31:32;
+    live.forEach(a=>{
+      const is=[];const E=m=>is.push({lvl:'err',m}),W=m=>is.push({lvl:'warn',m});
+      if(a.locked){out.set(a.id,is);return;}
+      const n=a.name.trim();
+      if(!n)E('Name fehlt');else{if(!ALIAS_RE.test(n))E('Name: nur Buchstaben, Ziffern und _');if(n.length>max)E('Name länger als '+max+' Zeichen');if(/^\d+$/.test(n))E('Name darf nicht nur aus Ziffern bestehen');if(cnt.get(n.toLowerCase())>1)E('Name doppelt vergeben');}
+      if(!a.isNew&&n&&n!==a.orig.name.trim())W('Wird umbenannt, Verweise in Regeln und NAT werden angepasst');
+      if(!a.roContent){const t=toks(a.content);if(!t.length)W('Keine Einträge');const r=aliasTokIssues(a.type,t,n,names);r.errs.slice(0,3).forEach(E);r.warns.slice(0,2).forEach(W);}
+      out.set(a.id,is);
+    });
+  },
+  newItem(v){return {name:'',type:['host','network','port'].includes(v.group)?v.group:'host',content:'',descr:'',enabled:true,store:this.D().store};},
+  write(a,all){
+    const n=a.node,ch=k=>all||norm(a[k])!==norm((a.orig||{})[k]);const t=toks(a.content);
+    if(a.store==='mvc'){if(ch('enabled'))setTxt(n,'enabled',a.enabled?'1':'0');if(ch('name'))setTxt(n,'name',a.name.trim());if(ch('type'))setTxt(n,'type',a.type);if(ch('content'))setTxt(n,'content',t.join('\n'));if(ch('descr'))setTxt(n,'description',a.descr.trim());}
+    else{
+      if(ch('name'))setTxt(n,'name',a.name.trim());if(ch('type'))setTxt(n,'type',a.type);
+      if(!a.roContent&&ch('content')){const old=all?[]:toks(a.orig.content);const od=String(a.detail||'').split('||');const dm=new Map();old.forEach((x,i)=>dm.set(x,od[i]||''));setTxt(n,'address',t.join(' '));setTxt(n,'detail',t.map(x=>dm.get(x)||'').join('||'),true);}
+      if(ch('descr'))setTxt(n,'descr',a.descr.trim(),true);
+    }
+  },
+  create(a){
+    let p,node;
+    if(a.store==='mvc'){const mvc=path(S.root,'OPNsense','Firewall','Alias');p=kid(mvc,'aliases');if(!p){p=S.doc.createElement('aliases');insertChild(mvc,p,null);}
+      const tpl=kids(p,'alias').find(x=>['host','network','port'].includes(txt(x,'type')));
+      node=tpl?blankClone(tpl):makeEl('alias',[['enabled','1'],['name'],['type'],['proto'],['interface'],['counters','0'],['updatefreq'],['content'],['password'],['username'],['authtype'],['categories'],['description']],true);}
+    else{p=kid(S.root,'aliases');if(!p){p=S.doc.createElement('aliases');insertChild(S.root,p,null);}node=makeEl('alias',[['name'],['type'],['address'],['descr'],['detail']]);}
+    insertChild(p,node,lastOf(p,'alias'));reindent(node);a.node=node;this.write(a,true);
+  },
+  renames(){return this.D().items.filter(a=>!a.isNew&&!a.deleted&&a.name.trim()&&a.name.trim()!==a.orig.name.trim()).map(a=>[a.orig.name.trim(),a.name.trim()]);},
+  csv:{head:['Name','Typ','Inhalt','Beschreibung','Aktiv'],row:it=>[it.name,it.type,toks(it.content).join(' '),it.descr,it.enabled?'ja':'nein']},
+  impFields:[['name','Name'],['type','Typ'],['content','Inhalt'],['descr','Beschreibung']],
+  pasteHint:'Eine Zeile pro Alias: Name, Typ (host, network, port …), Inhalt und Beschreibung. Mehrere Einträge im Inhalt mit Leerzeichen trennen. Fehlt der Typ, wird er aus dem Inhalt erraten.',
+  placeholder:'Name;Typ;Inhalt;Beschreibung\nDrucker;host;192.168.1.50 192.168.1.51;Alle Drucker\nWebports;port;80 443 8080:8090;Webdienste',
+  headerKey(h){h=h.toLowerCase().trim();
+    if(/beschr|descr|kommentar|comment|notiz/.test(h))return 'descr';
+    if(/^(typ|type|art)$/.test(h))return 'type';
+    if(/inhalt|content|adress|address|eintr|werte|entries|member|mitglied/.test(h))return 'content';
+    if(/name|alias/.test(h))return 'name';
+    return '';},
+  autoMap(table,ncol){const m=new Array(ncol).fill('');const order=ncol>=3?['name','type','content','descr']:['name','content'];order.forEach((k,i)=>{if(i<ncol)m[i]=k;});return m;},
+  renderImpOpts(box){const o=impO();if(!o.mode)o.mode='replace';box.innerHTML='<div class="row">'+sel('mode','Wenn ein Alias mit gleichem Namen existiert',[['replace','Inhalt ersetzen'],['merge','Einträge ergänzen'],['skip','Zeile überspringen']],o.mode)+'</div>';},
+  onImpOpt:()=>false,
+  rowsFromConfig(M){return M.data.alias.items.filter(a=>!a.locked).map(a=>({name:a.name,type:a.type,content:a.content,descr:a.descr}));},
+  guessType(list){if(list.length&&list.every(t=>isPort(t)||isPortRange(t)))return 'port';if(list.some(t=>isV4Cidr(t)||isV6Cidr(t)))return 'network';return 'host';},
+  typeFrom(s){s=String(s||'').trim().toLowerCase().replace(/[()\s]/g,'');const map={host:'host',hosts:'host',network:'network',networks:'network',netzwerk:'network',netzwerke:'network',net:'network',port:'port',ports:'port',url:'url',urlips:'url',urltable:'urltable',urltabelle:'urltable',url_ports:'url_ports',urlports:'url_ports',urltable_ports:'urltable_ports',geoip:'geoip',networkgroup:'networkgroup',netzwerkgruppe:'networkgroup',mac:'mac',macadressen:'mac',asn:'asn',dynipv6host:'dynipv6host',authgroup:'authgroup'};return map[s]||'';},
+  previewHead(){return ['Name','Typ','Inhalt','Beschreibung'];},
+  preview(rows){
+    const o=impO(),D=this.D();const ex=new Map();D.items.filter(a=>!a.deleted).forEach(a=>ex.set(a.name.trim().toLowerCase(),a));
+    const names=new Map(S.aliasMap);rows.forEach(r=>{const n=String(r.name||'').trim();if(n&&!names.has(n))names.set(n,{name:n,type:this.typeFrom(r.type)||this.guessType(toks(r.content))});});
+    const seen=new Set();const allowed=aliasTypes();
+    return rows.map(r=>{
+      const p={r,notes:[],status:'new',name:String(r.name||'').trim(),descr:String(r.descr||'').trim(),content:toks(r.content),type:'',ex:null};
+      const bad=m=>{p.status='err';p.notes.push(m);};
+      p.type=this.typeFrom(r.type)||(String(r.type||'').trim()?'':this.guessType(p.content));
+      if(!p.type)bad('Typ unbekannt: '+r.type);
+      else if(!allowed.includes(p.type))bad(S.type==='pfsense'&&/^url/.test(p.type)?'URL-Aliase bitte in der Oberfläche anlegen':'Typ hier nicht möglich');
+      if(!p.name)bad('Name fehlt');else if(!ALIAS_RE.test(p.name)||/^\d+$/.test(p.name))bad('Name ungültig');
+      const k=p.name.toLowerCase();if(k&&seen.has(k))bad('Name doppelt in der Liste');seen.add(k);
+      if(p.status!=='err'){const iss=aliasTokIssues(p.type,p.content,p.name,names);if(iss.errs.length)bad(iss.errs[0]);else if(iss.warns.length)p.notes.push(iss.warns[0]);}
+      if(p.status!=='err'){const e=ex.get(k);if(e){
+        if(e.locked)bad('Systemalias');
+        else if(o.mode==='skip'){p.status='skip';p.notes.push('Name existiert');}
+        else{p.status='upd';p.ex=e;if(o.mode==='merge'){const cur=toks(e.content);p.content=cur.concat(p.content.filter(t=>!cur.includes(t)));}
+          if(p.content.join(' ')===toks(e.content).join(' ')&&(!p.descr||p.descr===e.descr.trim())&&e.type===p.type){p.status='skip';p.notes.push('unverändert');}}
+      }}
+      p.cells=[[p.name,'mono'],[TYPE_LABEL[p.type]||p.type||String(r.type||'')],[p.content.join(' '),'mono clip'],[p.descr,'clip']];
+      return p;
+    });
+  },
+  apply(list){
+    const D=this.D();
+    list.forEach(p=>{
+      if(p.status==='new')D.items.push(newIt(ALIAS,{name:p.name,type:p.type,content:p.content.join(' '),descr:p.descr,enabled:true,store:D.store}));
+      else if(p.status==='upd'){p.ex.content=p.content.join(' ');p.ex.type=p.type;if(p.descr)p.ex.descr=p.descr;}
+    });
+    return list.length;
+  }
+};
+
+/* ================= FIREWALLREGELN ================= */
+const PROTOS=[['','beliebig'],['tcp','TCP'],['udp','UDP'],['tcp/udp','TCP/UDP'],['icmp','ICMP'],['esp','ESP'],['ah','AH'],['gre','GRE'],['igmp','IGMP'],['ospf','OSPF'],['pim','PIM'],['carp','CARP'],['pfsync','PFSYNC'],['ipv6','IPv6']];
+const ACTIONS=[['pass','Erlauben'],['block','Blockieren'],['reject','Ablehnen']];
+const IPV=[['inet','IPv4'],['inet6','IPv6'],['inet46','IPv4+6']];
+function readEP(el){if(!el)return {v:'any',port:''};const not=!!kid(el,'not')&&isOn(el,'not');let v='any';if(kid(el,'network'))v=txt(el,'network');else if(kid(el,'address'))v=txt(el,'address');return {v:(not?'!':'')+v,port:txt(el,'port')};}
+function ifKeys(){const s=new Set(S.interfaces.map(i=>i.key));S.data.rule.items.forEach(r=>{if(!r.floating&&r.iface)s.add(r.iface);});return s;}
+function isNetTok(v,keys){if(v==='(self)')return true;if(keys.has(v))return true;if(/ip$/.test(v)&&keys.has(v.slice(0,-2)))return true;return false;}
+function epIssues(tok,ipv,names,keys,label){
+  const out=[];let v=String(tok||'').trim();if(v.startsWith('!'))v=v.slice(1).trim();
+  if(!v||v==='any'||isNetTok(v,keys))return out;
+  if(isV4(v)||isV4Cidr(v)){if(ipv==='inet6')out.push({lvl:'err',m:label+' ist IPv4, Regel ist IPv6'});return out;}
+  if(isV6(v)||isV6Cidr(v)){if(ipv==='inet')out.push({lvl:'err',m:label+' ist IPv6, Regel ist IPv4'});return out;}
+  const a=names.get(v);
+  if(a){if(aliasCat(a.type)==='port')out.push({lvl:'err',m:label+': '+v+' ist ein Port-Alias'});return out;}
+  if(ALIAS_RE.test(v))out.push({lvl:'warn',m:label+': Alias '+v+' nicht gefunden'});else out.push({lvl:'err',m:label+' ungültig: '+v});
+  return out;
+}
+function portIssues(tok,names,label){
+  const v=String(tok||'').trim();if(!v||isPort(v)||isPortRange(v))return [];
+  const a=names.get(v);if(a){return aliasCat(a.type)==='port'?[]:[{lvl:'err',m:label+': '+v+' ist kein Port-Alias'}];}
+  if(ALIAS_RE.test(v))return [{lvl:'warn',m:label+': '+v+' nicht als Alias gefunden'}];
+  return [{lvl:'err',m:label+' ungültig: '+v}];
+}
+function ruleIssues(r,names,keys){
+  const is=[];
+  if(!r.floating&&!keys.has(r.iface))is.push({lvl:'warn',m:'Unbekanntes Interface'});
+  is.push(...epIssues(r.src,r.ipproto,names,keys,'Quelle'),...epIssues(r.dst,r.ipproto,names,keys,'Ziel'));
+  const tu=['tcp','udp','tcp/udp'].includes(r.proto);
+  if((r.sport.trim()||r.dport.trim())&&!tu)is.push({lvl:'err',m:'Ports nur bei TCP oder UDP'});
+  else{is.push(...portIssues(r.sport,names,'Quellport'),...portIssues(r.dport,names,'Zielport'));}
+  return is;
+}
+const normPort=p=>{p=String(p||'').trim();const m=/^(\d+)\s*[:\-]\s*(\d+)$/.exec(p);return m?m[1]+'-'+m[2]:p;};
+let trackerSeed=0;
+function newTracker(){
+  const used=new Set($$('rule > tracker',S.root).map(t=>t.textContent.trim()));
+  if(!trackerSeed)trackerSeed=Math.floor(Date.now()/1000);
+  while(used.has(String(trackerSeed)))trackerSeed++;
+  return String(trackerSeed++);
+}
+const RULE={
+  key:'rule',label:'Firewallregeln',short:'Regeln',one:'Regel',many:'Regeln',
+  fields:['iface','type','ipproto','proto','src','sport','dst','dport','descr','enabled','log'],allowAll:true,fixedOrder:true,rerenderOn:['iface'],
+  parse(M){
+    const f=kid(M.root,'filter');const items=[];let ord=0;
+    kids(f,'rule').forEach(r=>{
+      const floating=['yes','1','on','true'].includes(txt(r,'floating').toLowerCase());const s=readEP(kid(r,'source')),d=readEP(kid(r,'destination'));
+      items.push(mk(RULE,r,{iface:txt(r,'interface'),floating,type:txt(r,'type')||'pass',ipproto:txt(r,'ipprotocol')||'inet',proto:txt(r,'protocol'),src:s.v,sport:s.port,dst:d.v,dport:d.port,descr:txt(r,'descr'),enabled:!isOn(r,'disabled'),log:isOn(r,'log'),ord:ord++,nat:!!txt(r,'associated-rule-id')}));
+    });
+    M.data.rule={items,mvcRules:kids(path(M.root,'OPNsense','Firewall','Filter','rules'),'rule').length,separators:kids(kid(f,'separator')).some(x=>kids(x).length)};
+  },
+  D(){return S.data.rule;},
+  groupOf:it=>it.floating?'floating':it.iface,
+  groupList(){const it=this.D().items;const keys=[];S.interfaces.forEach(i=>keys.push(i.key));it.forEach(r=>{const g=this.groupOf(r);if(!keys.includes(g))keys.push(g);});return keys;},
+  defaultGroup(){const it=this.D().items;if(it.some(r=>r.iface==='lan'&&!r.floating))return 'lan';const r=it.find(r=>!r.floating);return r?r.iface:(S.interfaces[0]||{key:'all'}).key;},
+  groups(){const it=this.D().items.filter(r=>!r.deleted);return this.groupList().filter(k=>k!=='lo0').map(k=>({id:k,label:ifLabel(k),count:it.filter(r=>this.groupOf(r)===k).length}));},
+  summary(){return '';},
+  notes(){const D=this.D();const n=[];if(D.mvcRules)n.push(D.mvcRules+' Regeln aus dem neuen Regel-Editor von OPNsense werden hier nicht angezeigt und bleiben unverändert.');if(D.separators)n.push('Trennlinien (Separators) werden beim Verschieben nicht mitverschoben.');n.push('Die Reihenfolge zählt: Die erste passende Regel greift.');return n.join(' ');},
+  subgroups:()=>null,
+  search:it=>[it.src,it.dst,it.sport,it.dport,it.descr,it.proto,it.iface],
+  columns(v){
+    const ifOpts=()=>[...ifKeys()].filter(k=>k!=='lo0').map(k=>[k,ifLabel(k)]);
+    return [
+      ...(v.group!=='all'&&v.group!=='floating'?[{k:'ord',kind:'order',label:'',w:34}]:[]),
+      {k:'st',kind:'status',label:'Status',w:170},
+      {k:'enabled',kind:'check',label:'Aktiv',w:48},
+      {k:'type',kind:'select',label:'Aktion',w:112,opts:()=>ACTIONS},
+      {k:'iface',kind:it=>it.floating?'mono':'select',label:'Interface',w:120,opts:ifOpts,missing:it=>it.iface||'Bitte wählen',ro:it=>it.floating},
+      {k:'ipproto',kind:'select',label:'IP-Version',w:92,opts:()=>IPV},
+      {k:'proto',kind:'select',label:'Protokoll',w:102,opts:()=>PROTOS,missing:it=>it.proto},
+      {k:'src',kind:'mono',label:'Quelle',w:150,list:'dl-addr'},
+      {k:'sport',kind:'mono',label:'Quellport',w:92,list:'dl-port'},
+      {k:'dst',kind:'mono',label:'Ziel',w:150,list:'dl-addr'},
+      {k:'dport',kind:'mono',label:'Zielport',w:92,list:'dl-port'},
+      {k:'log',kind:'check',label:'Log',w:40},
+      {k:'descr',kind:'text',label:'Beschreibung',w:200},
+      {k:'del',kind:'del',w:100}
+    ];
+  },
+  validate(items,out){
+    const keys=ifKeys();
+    items.filter(r=>!r.deleted).forEach(r=>{const is=ruleIssues(r,S.aliasMap,keys);if(r.nat)is.push({lvl:'warn',m:'Mit einer NAT-Regel verknüpft'});out.set(r.id,is);});
+  },
+  newItem(v){
+    if(v.group==='floating'){toast('Floating-Regeln bitte in der Firewall-Oberfläche anlegen.');return null;}
+    const max=Math.max(-1,...this.D().items.map(r=>r.ord));
+    return {iface:v.group!=='all'?v.group:this.defaultGroup(),floating:false,type:'pass',ipproto:'inet',proto:'',src:'any',sport:'',dst:'any',dport:'',descr:'',enabled:true,log:false,ord:max+1,nat:false};
+  },
+  move(it,dir){
+    const g=this.groupOf(it);const list=this.D().items.filter(r=>this.groupOf(r)===g).sort((a,b)=>a.ord-b.ord);
+    const i=list.indexOf(it),j=i+dir;if(j<0||j>=list.length)return;
+    const o=list[j];const t=it.ord;it.ord=o.ord;o.ord=t;if(!it.isNew)it.moved=true;if(!o.isNew)o.moved=true;
+  },
+  writeEP(n,tag,tok,port){
+    const d=S.doc;let ep=kid(n,tag);if(!ep){ep=d.createElement(tag);insertChild(n,ep,null);}
+    while(ep.firstChild)ep.removeChild(ep.firstChild);
+    let v=String(tok||'').trim();const neg=v.startsWith('!');if(neg)v=v.slice(1).trim();
+    const add=(t,val)=>{const c=d.createElement(t);if(val)c.appendChild(d.createTextNode(val));ep.appendChild(c);};
+    if(!v||v==='any')add('any',ONV());else if(isNetTok(v,ifKeys()))add('network',v);else add('address',v);
+    const p=normPort(port);if(p)add('port',p);
+    if(neg)add('not',ONV());
+    reindent(ep);
+  },
+  write(r,all){
+    const n=r.node,ch=k=>all||norm(r[k])!==norm((r.orig||{})[k]);
+    if(ch('type'))setTxt(n,'type',r.type);
+    if(ch('iface'))setTxt(n,'interface',r.iface.trim());
+    if(ch('ipproto'))setTxt(n,'ipprotocol',r.ipproto);
+    if(ch('proto')){if(r.proto)setTxt(n,'protocol',r.proto);else{const p=kid(n,'protocol');if(p)removeEl(p);}}
+    if(ch('src')||ch('sport'))this.writeEP(n,'source',r.src,r.sport);
+    if(ch('dst')||ch('dport'))this.writeEP(n,'destination',r.dst,r.dport);
+    if(ch('descr'))setTxt(n,'descr',r.descr.trim(),S.type==='pfsense');
+    if(ch('enabled'))setBool(n,'disabled',!r.enabled);
+    if(ch('log'))setBool(n,'log',r.log);
+  },
+  create(r){
+    let f=kid(S.root,'filter');if(!f){f=S.doc.createElement('filter');insertChild(S.root,f,null);}
+    let node;
+    if(S.type==='pfsense'){
+      node=makeEl('rule',[['id'],['tracker',newTracker()],['type'],['interface'],['ipprotocol'],['tag'],['tagged'],['max'],['max-src-nodes'],['max-src-conn'],['max-src-states'],['statetimeout'],['statetype'],['os'],['source'],['destination'],['descr']]);
+      const c=S.doc.createElement('created');const t=S.doc.createElement('time');t.textContent=String(Math.floor(Date.now()/1000));const u=S.doc.createElement('username');u.appendChild(S.doc.createCDATASection('Config-Editor'));c.appendChild(t);c.appendChild(u);node.appendChild(c);
+    }else{
+      node=makeEl('rule',[['type'],['interface'],['ipprotocol'],['statetype','keep state'],['direction','in'],['quick','1'],['source'],['destination'],['descr']],true);
+    }
+    insertChild(f,node,lastOf(f,'rule'));reindent(node);r.node=node;
+    if(S.type==='pfsense')setTxt(node,'statetype','keep state',true);
+    this.write(r,true);
+  },
+  after(){
+    const f=kid(S.root,'filter');if(!f)return;
+    const cur=kids(f,'rule');const want=this.D().items.filter(r=>!r.deleted).sort((a,b)=>a.ord-b.ord).map(r=>r.node);
+    this.D().items.sort((a,b)=>a.ord-b.ord).forEach((r,i)=>r.ord=i);
+    if(cur.length!==want.length||cur.every((n,i)=>n===want[i]))return;
+    const marks=cur.map(n=>{const c=S.doc.createComment('m');n.parentNode.insertBefore(c,n);n.parentNode.removeChild(n);return c;});
+    marks.forEach((c,i)=>c.parentNode.replaceChild(want[i],c));
+  },
+  csv:{head:['Interface','Aktion','Aktiv','IP-Version','Protokoll','Quelle','Quellport','Ziel','Zielport','Log','Beschreibung'],
+    row:r=>[r.floating?'floating':r.iface,r.type,r.enabled?'ja':'nein',(IPV.find(x=>x[0]===r.ipproto)||[0,r.ipproto])[1],r.proto||'any',r.src,r.sport,r.dst,r.dport,r.log?'ja':'nein',r.descr]},
+  impFields:[['iface','Interface'],['type','Aktion'],['enabled','Aktiv'],['ipproto','IP-Version'],['proto','Protokoll'],['src','Quelle'],['sport','Quellport'],['dst','Ziel'],['dport','Zielport'],['log','Log'],['descr','Beschreibung']],
+  pasteHint:'Am einfachsten mit Kopfzeile, so wie der CSV-Export sie erzeugt. Quelle und Ziel: any, ein Interface-Netz wie lan, eine Interface-Adresse wie lanip, (self), eine IP, ein Netz oder ein Alias. Ein vorangestelltes ! verneint.',
+  placeholder:'Interface;Aktion;Protokoll;Quelle;Ziel;Zielport;Beschreibung\nlan;pass;tcp;lan;Drucker;9100;Drucken erlauben\nopt1;block;any;opt1;lan;;IoT darf nicht ins LAN',
+  headerKey(h){h=h.toLowerCase().trim();
+    if(/quell.?port|source.?port|src.?port|^sport$/.test(h))return 'sport';
+    if(/ziel.?port|dest.*port|dst.?port|^dport$|^port$/.test(h))return 'dport';
+    if(/interface|schnittstelle|^if$/.test(h))return 'iface';
+    if(/aktion|action|^typ$|^type$/.test(h))return 'type';
+    if(/aktiv|enabled|active|status/.test(h))return 'enabled';
+    if(/ip.?version|ipprotocol|family|^ipv$/.test(h))return 'ipproto';
+    if(/protokoll|protocol|^proto$/.test(h))return 'proto';
+    if(/quelle|source|^src$|^von$|^from$/.test(h))return 'src';
+    if(/^ziel$|destination|^dst$|^nach$|^to$/.test(h))return 'dst';
+    if(/^log/.test(h))return 'log';
+    if(/beschr|descr|kommentar|comment/.test(h))return 'descr';
+    return '';},
+  autoMap(table,ncol){const order=['iface','type','enabled','ipproto','proto','src','sport','dst','dport','log','descr'];return [...Array(ncol).keys()].map(i=>order[i]||'');},
+  ifOptsTarget(){return [...ifKeys()].filter(k=>k!=='lo0').map(k=>[k,ifLabel(k)]);},
+  resolveIf(val){const v=String(val||'').trim();if(!v)return '';const keys=ifKeys();if(keys.has(v))return v;const lv=v.toLowerCase();if(keys.has(lv))return lv;const i=S.interfaces.find(x=>x.descr.toLowerCase()===lv);return i?i.key:null;},
+  renderImpOpts(box,src){
+    const o=impO();let h='';const tOpts=this.ifOptsTarget();
+    if(src==='config'&&IMP.cfg){
+      const C=IMP.cfg;const sIfs=[...new Set(C.data.rule.items.filter(r=>!r.floating).map(r=>r.iface))];
+      h+='<p class="hint">Welche Regeln sollen wohin? Interfaces heißen auf zwei Firewalls oft unterschiedlich.</p><div class="row maprow">';
+      sIfs.forEach(k=>{const key='map:'+k;if(o[key]===undefined){const byKey=tOpts.find(x=>x[0]===k);const byName=tOpts.find(x=>x[1].toLowerCase()===ifLabelIn(C,k).toLowerCase());o[key]=byName?byName[0]:byKey?byKey[0]:'';}
+        const n=C.data.rule.items.filter(r=>!r.floating&&r.iface===k).length;
+        h+=sel(key,ifLabelIn(C,k)+' ('+n+' Regeln) nach',[['','nicht übernehmen']].concat(tOpts),o[key]);});
+      h+='</div><div class="row">'+chk('withAliases','Fehlende Aliase aus der zweiten Datei mit übernehmen',o.withAliases!==false)+'</div>';
+    }
+    if(src==='paste'){if(!o.fallbackIf)o.fallbackIf=S.view.rule.group!=='all'&&S.view.rule.group!=='floating'?S.view.rule.group:this.defaultGroup();h+='<div class="row">'+sel('fallbackIf','Interface für Zeilen ohne Angabe',tOpts,o.fallbackIf)+'</div>';}
+    box.innerHTML=h;
+  },
+  onImpOpt:()=>false,
+  rowsFromConfig(M){return M.data.rule.items.slice().sort((a,b)=>a.ord-b.ord).map(r=>({iface:r.iface,floating:r.floating,type:r.type,enabled:r.enabled,ipproto:r.ipproto,proto:r.proto,src:r.src,sport:r.sport,dst:r.dst,dport:r.dport,log:r.log,descr:r.descr,fromCfg:true}));},
+  previewHead(){return ['Interface','Aktion','Protokoll','Quelle','Ziel','Beschreibung'];},
+  normRow(r,src){
+    const o=impO();
+    const typ=String(r.type==null?'':r.type).trim().toLowerCase();
+    const type=/^(block|blockieren|drop|verwerfen|deny)$/.test(typ)?'block':/^(reject|ablehnen|zurückweisen)$/.test(typ)?'reject':(!typ||/^(pass|erlauben|allow|accept|permit)$/.test(typ))?'pass':null;
+    const ipv=String(r.ipproto||'').trim().toLowerCase().replace(/\s/g,'');
+    const ipproto=/^(inet46|ipv4\+6|ipv4\+ipv6|beide|both|46|dual)$/.test(ipv)?'inet46':/^(inet6|ipv6|6)$/.test(ipv)?'inet6':'inet';
+    let proto=String(r.proto||'').trim().toLowerCase();if(/^(any|beliebig|\*|alle|all)$/.test(proto))proto='';
+    const mapKey=k=>{if(o['map:'+k]!==undefined)return o['map:'+k]||null;if(!IMP.cfg)return null;const lbl=ifLabelIn(IMP.cfg,k).toLowerCase();const t=this.ifOptsTarget();const hit=t.find(x=>x[1].toLowerCase()===lbl)||t.find(x=>x[0]===k);return hit?hit[0]:null;};
+    const ep=v=>{v=String(v==null?'':v).trim();if(!v||v==='*')return 'any';
+      if(src==='config'&&IMP.cfg){const neg=v.startsWith('!');let b=neg?v.slice(1).trim():v;const keys=new Set(IMP.cfg.interfaces.map(i=>i.key));
+        if(keys.has(b)){const m=mapKey(b);if(m)b=m;}else if(/ip$/.test(b)&&keys.has(b.slice(0,-2))){const m=mapKey(b.slice(0,-2));if(m)b=m+'ip';}
+        v=(neg?'!':'')+b;}
+      return v;};
+    let iface;
+    if(src==='config'){iface=o['map:'+r.iface]||'';}
+    else{const res=this.resolveIf(r.iface);iface=res===''?o.fallbackIf:res;}
+    return {iface,type,ipproto,proto,src:ep(r.src),sport:normPort(r.sport),dst:ep(r.dst),dport:normPort(r.dport),descr:String(r.descr||'').trim(),enabled:typeof r.enabled==='boolean'?r.enabled:yes(r.enabled,true),log:typeof r.log==='boolean'?r.log:yes(r.log,false),floating:!!r.floating||String(r.iface||'').trim().toLowerCase()==='floating',rawIf:r.iface};
+  },
+  preview(rows,src){
+    const o=impO();const keys=ifKeys();
+    const names=new Map(S.aliasMap);
+    const cfgAliases=src==='config'&&IMP.cfg&&o.withAliases!==false?new Map(IMP.cfg.data.alias.items.filter(a=>!a.locked).map(a=>[a.name.trim(),a])):null;
+    if(cfgAliases)cfgAliases.forEach((a,n)=>{if(!names.has(n))names.set(n,{name:n,type:a.type});});
+    const sig=r=>[r.iface,r.type,r.ipproto,r.proto,r.src,r.sport,r.dst,r.dport].join('|');
+    const existing=new Set(this.D().items.filter(r=>!r.deleted&&!r.floating).map(sig));
+    return rows.map(raw=>{
+      const r=this.normRow(raw,src);const p={r,notes:[],status:'new'};
+      const bad=m=>{p.status='err';p.notes.push(m);};
+      if(r.floating)bad('Floating-Regeln werden nicht importiert');
+      else if(src==='config'&&!r.iface){p.status='skip';p.notes.push('Interface nicht übernommen');}
+      else if(r.iface===null||!r.iface)bad('Interface unbekannt: '+r.rawIf);
+      if(!r.type)bad('Aktion unbekannt');
+      if(p.status==='new'){
+        const is=ruleIssues(r,names,keys);const e=is.find(i=>i.lvl==='err');if(e)bad(e.m);else is.slice(0,2).forEach(i=>p.notes.push(i.m));
+        if(p.status==='new'&&existing.has(sig(r))){p.status='skip';p.notes.push('Gleiche Regel existiert schon');}
+        if(p.status==='new'&&cfgAliases){const need=[r.src,r.dst,r.sport,r.dport].map(t=>String(t).replace(/^!/,'').trim()).filter(t=>cfgAliases.has(t)&&!S.aliasMap.has(t));if(need.length)p.notes.push('bringt Alias mit: '+[...new Set(need)].join(', '));}
+        if(p.status==='new')existing.add(sig(r));
+      }
+      const port=t=>t?':'+t:'';
+      p.cells=[[r.iface?ifLabel(r.iface):String(r.rawIf||'')],[(ACTIONS.find(a=>a[0]===r.type)||[0,''])[1]+(r.enabled?'':' (aus)')],[(PROTOS.find(x=>x[0]===r.proto)||[0,r.proto])[1]],[r.src+port(r.sport),'mono'],[r.dst+port(r.dport),'mono'],[r.descr,'clip']];
+      return p;
+    });
+  },
+  apply(list,src){
+    const o=impO();const D=this.D();let max=Math.max(-1,...D.items.map(r=>r.ord));
+    const names=new Set(S.aliasMap.keys());let addedAliases=0;
+    const cfgAliases=src==='config'&&IMP.cfg&&o.withAliases!==false?new Map(IMP.cfg.data.alias.items.filter(a=>!a.locked).map(a=>[a.name.trim(),a])):null;
+    const pullAlias=n=>{
+      if(!cfgAliases||names.has(n)||!cfgAliases.has(n))return;const a=cfgAliases.get(n);
+      if(!aliasTypes().includes(a.type))return;
+      names.add(n);S.data.alias.items.push(newIt(ALIAS,{name:n,type:a.type,content:a.content,descr:a.descr,enabled:true,store:S.data.alias.store}));addedAliases++;
+      toks(a.content).forEach(pullAlias);
+    };
+    list.forEach(p=>{const r=p.r;D.items.push(newIt(RULE,{iface:r.iface,floating:false,type:r.type,ipproto:r.ipproto,proto:r.proto,src:r.src,sport:r.sport,dst:r.dst,dport:r.dport,descr:r.descr,enabled:r.enabled,log:r.log,ord:++max,nat:false}));
+      [r.src,r.dst,r.sport,r.dport].forEach(t=>pullAlias(String(t).replace(/^!/,'').trim()));});
+    const first=list[0];if(first){S.view.rule.group=first.r.iface;}
+    IMP.extraMsg=addedAliases?' Dazu '+addedAliases+' Alias'+(addedAliases===1?'':'e')+'.':'';
+    return list.length;
+  }
+};
+
+const MODS={dhcp:DHCP,alias:ALIAS,rule:RULE};
+const ORDER=['dhcp','alias','rule'];
+function newIt(mod,f){return Object.assign({id:seq++,node:null,isNew:true,deleted:false,moved:false,orig:null},f);}
+
+/* ================= parse & init ================= */
+function parseConfig(text){
+  text=String(text).replace(/^\ufeff/,'');
+  if(/-{4}\s*BEGIN config\.xml\s*-{4}/.test(text))throw new Error('Diese Sicherung ist verschlüsselt. Lade sie in der Firewall ohne Verschlüsselung herunter und öffne sie dann hier.');
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw new Error('Die Datei ist kein gültiges XML. Prüfe, ob es die config.xml aus der Sicherung ist.');
+  const root=doc.documentElement;const type=root.tagName.toLowerCase();
+  if(type!=='pfsense'&&type!=='opnsense')throw new Error('Das ist keine vollständige pfSense- oder OPNsense-Konfiguration. Das oberste Element heißt <'+root.tagName+'>.');
+  const dm=/^\s*(<\?xml[^>]*\?>)/.exec(text);const um=/\n([ \t]+)</.exec(text);
+  const M={doc,root,type,decl:dm?dm[1]:'<?xml version="1.0"?>',unit:um?um[1]:'\t',interfaces:[],data:{}};
+  kids(kid(root,'interfaces')).forEach(i=>{const ip=txt(i,'ipaddr');M.interfaces.push({key:i.tagName,descr:txt(i,'descr')||i.tagName.toUpperCase(),ip,cidr:cidrOf(ip,parseInt(txt(i,'subnet'),10))});});
+  ORDER.forEach(k=>MODS[k].parse(M));
+  return M;
+}
+function loadText(text,name){
+  const M=parseConfig(text);
+  const keep=S&&name===undefined?{tab:S.tab,view:S.view,fileName:S.fileName}:null;
+  S=Object.assign(M,{fileName:keep?keep.fileName:(name||'config.xml'),baseText:text,unsaved:false,lastXml:null,confirmErr:false,tab:keep?keep.tab:'dhcp',view:{}});
+  ORDER.forEach(k=>{const m=MODS[k];S.view[k]=keep?keep.view[k]:{group:m.defaultGroup(),sub:'all',q:'',issues:false,sort:{key:m.defaultSort||null,dir:1}};});
+  if(!keep){const firstWith=ORDER.find(k=>S.data[k].items.length);if(firstWith)S.tab=firstWith;}
+  $('#start').hidden=true;$('#app').hidden=false;$('#reloadBtn').hidden=false;
+  $('#fileinfo').innerHTML='<span class="badge">'+(S.type==='pfsense'?'pfSense':'OPNsense')+'</span>'+esc(S.fileName);
+  $('#loadErr').hidden=true;
+  const sw=$('#saveWhat');
+  sw.innerHTML='<option value="full">Komplette config.xml</option>'+(S.type==='pfsense'?'<option value="dhcpd">Nur Bereich DHCP (Restore area)</option><option value="aliases">Nur Bereich Aliase (Restore area)</option><option value="filter">Nur Bereich Firewallregeln (Restore area)</option>':'');
+  $('#areaHelp').hidden=S.type!=='pfsense';
+  closeImport();renderAll();
+}
+async function openFile(file){
+  try{const t=await file.text();loadText(t,file.name);}
+  catch(err){if(S&&!$('#app').hidden)toast(err.message);else{const b=$('#loadErr');b.textContent=err.message;b.hidden=false;}}
+}
+
+/* ================= render ================= */
+const mod=()=>MODS[S.tab];
+const dat=()=>S.data[S.tab];
+const view=()=>S.view[S.tab];
+function renderAll(){renderTabs();renderOverview();renderSub();render();}
+function renderTabs(){
+  $('#tabs').innerHTML=ORDER.map(k=>{const m=MODS[k];const n=S.data[k].items.filter(i=>!i.deleted).length;return '<button role="tab" data-tab="'+k+'" aria-selected="'+(S.tab===k)+'">'+esc(m.label)+'<span class="n">'+n+'</span><span class="dot" data-dot="'+k+'" hidden></span></button>';}).join('');
+  $('#addBtn').textContent=mod().one+' hinzufügen';
+}
+function renderOverview(){
+  const m=mod(),v=view();const g=m.groups();let h='';
+  if(g&&g.length){
+    if(!g.some(x=>x.id===v.group)&&v.group!=='all')v.group=m.allowAll?'all':g[0].id;
+    h+=g.map(x=>'<button class="chip" data-g="'+esc(x.id)+'" aria-pressed="'+(v.group===x.id)+'">'+esc(x.label)+'<b>'+x.count+'</b>'+(x.note?'<small>'+esc(x.note)+'</small>':'')+'</button>').join('');
+    if(m.allowAll){const n=dat().items.filter(i=>!i.deleted).length;h+='<button class="chip" data-g="all" aria-pressed="'+(v.group==='all')+'">Alle<b>'+n+'</b></button>';}
+  }else{v.group='all';const s=m.summary();if(s)h+='<span class="infoline">'+esc(s)+'</span>';}
+  if(m.notes)h+='<span class="infoline" style="flex-basis:100%">'+esc(m.notes())+'</span>';
+  $('#overview').innerHTML=h;
+}
+function renderSub(){
+  const m=mod(),v=view(),s=$('#fSub');const list=m.subgroups(v.group);
+  if(!list||list.length<2){s.hidden=true;v.sub='all';return;}
+  if(!list.some(x=>x.id===v.sub))v.sub='all';
+  s.hidden=false;s.innerHTML='<option value="all">'+esc(m.subAll||'Alle')+'</option>'+list.map(x=>'<option value="'+esc(x.id)+'"'+(v.sub===x.id?' selected':'')+'>'+esc(x.label)+'</option>').join('');
+}
+function kindOf(c,it){return typeof c.kind==='function'?c.kind(it):c.kind;}
+function visible(cols){
+  const m=mod(),v=view(),q=v.q.trim().toLowerCase();
+  let rows=dat().items.filter(it=>(v.group==='all'||m.groupOf(it)===v.group)&&(v.sub==='all'||!m.subOf||m.subOf(it)===v.sub)&&(!q||m.search(it).some(x=>String(x||'').toLowerCase().includes(q))));
+  if(v.issues){refreshIssues();rows=rows.filter(it=>(S.issues.get(it.id)||[]).length);}
+  if(m.fixedOrder)rows.sort((a,b)=>a.ord-b.ord);
+  else if(v.sort.key){const c=cols.find(x=>x.k===v.sort.key);const val=c&&c.sort?c.sort:(it=>String(it[v.sort.key]||'').toLowerCase());const d=v.sort.dir;rows.sort((a,b)=>{if(a.isNew!==b.isNew)return a.isNew?1:-1;const x=val(a),y=val(b);return x<y?-d:x>y?d:0;});}
+  return rows;
+}
+function cellHtml(c,it){
+  const k=kindOf(c,it);const dis=(it.deleted||it.locked||(c.ro&&c.ro(it)))?' disabled':'';
+  if(k==='status')return '<div class="st"></div>';
+  if(k==='order'){const g=mod().groupOf(it);const list=dat().items.filter(r=>mod().groupOf(r)===g).sort((a,b)=>a.ord-b.ord);const i=list.indexOf(it);return '<div class="ord"><button data-act="up" aria-label="Nach oben"'+(i<=0||it.deleted?' disabled':'')+'>▲</button><button data-act="down" aria-label="Nach unten"'+(i>=list.length-1||it.deleted?' disabled':'')+'>▼</button></div>';}
+  if(k==='check')return '<input type="checkbox" class="ck" data-f="'+c.k+'"'+(it[c.k]?' checked':'')+dis+' aria-label="'+esc(c.label)+'">';
+  if(k==='select'){const opts=c.opts(it);let o=opts.map(([v,l])=>'<option value="'+esc(v)+'"'+(String(v)===String(it[c.k])?' selected':'')+'>'+esc(l)+'</option>').join('');if(!opts.some(([v])=>String(v)===String(it[c.k])))o='<option value="'+esc(it[c.k])+'" selected>'+esc(c.missing?c.missing(it):it[c.k])+'</option>'+o;return '<select class="in" data-f="'+c.k+'"'+dis+' aria-label="'+esc(c.label)+'">'+o+'</select>';}
+  if(k==='derived')return '<span class="derived" data-derived="'+c.k+'">'+esc(c.get(it))+'</span>';
+  if(k==='fixed')return '<span class="fixed">'+esc(c.get(it))+'</span>';
+  if(k==='del')return it.locked?'':'<button class="act" data-act="del">'+(it.deleted?'Zurückholen':'Entfernen')+'</button>';
+  return '<input class="in'+(k==='mono'?' mono':'')+'" data-f="'+c.k+'" value="'+esc(it[c.k])+'" spellcheck="false" autocomplete="off"'+(c.list?' list="'+c.list+'"':'')+(c.attrs?' '+c.attrs:'')+dis+' aria-label="'+esc(c.label)+'">';
+}
+function render(){
+  const m=mod(),v=view();const cols=m.columns(v);S.cols=cols;
+  const minW=cols.reduce((s,c)=>s+(c.w||220),0);$('#tbl').style.minWidth=minW+'px';
+  $('#thead').innerHTML='<tr>'+cols.map(c=>{const srt=!m.fixedOrder&&c.kind!=='status'&&c.kind!=='del'&&c.kind!=='check';return '<th'+(c.w?' style="width:'+c.w+'px"':'')+(srt?' data-sort="'+c.k+'"':'')+'>'+esc(c.label||'')+(srt&&v.sort.key===c.k?'<span class="arr">'+(v.sort.dir>0?'▲':'▼')+'</span>':'')+'</th>';}).join('')+'</tr>';
+  const rows=visible(cols);
+  $('#tbody').innerHTML=rows.map(it=>'<tr data-id="'+it.id+'">'+cols.map(c=>'<td>'+cellHtml(c,it)+'</td>').join('')+'</tr>').join('');
+  const e=$('#empty');
+  if(!rows.length){e.hidden=false;e.innerHTML=dat().items.length?'<p>Keine Einträge in dieser Ansicht.</p><button class="btn" data-empty="add">'+esc(m.one)+' hinzufügen</button>':'<p>Noch keine '+esc(m.many)+' vorhanden.</p><button class="btn" data-empty="add">'+esc(m.one)+' hinzufügen</button> <button class="btn primary" data-empty="imp">Importieren</button>';}
+  else e.hidden=true;
+  if(S.tab==='rule')renderDatalists();
+  refresh();
+}
+function renderDatalists(){
+  const o=[['any','beliebig'],['(self)','diese Firewall']];
+  S.interfaces.forEach(i=>{o.push([i.key,i.descr+'-Netz']);o.push([i.key+'ip',i.descr+'-Adresse']);});
+  ALIAS.D().items.filter(a=>!a.deleted&&a.name.trim()&&aliasCat(a.type)!=='port').forEach(a=>o.push([a.name.trim(),'Alias '+(TYPE_LABEL[a.type]||a.type)]));
+  $('#dl-addr').innerHTML=o.map(([v,l])=>'<option value="'+esc(v)+'" label="'+esc(l)+'">').join('');
+  const p=[['22','SSH'],['53','DNS'],['80','HTTP'],['443','HTTPS'],['123','NTP']];
+  ALIAS.D().items.filter(a=>!a.deleted&&a.name.trim()&&aliasCat(a.type)==='port').forEach(a=>p.unshift([a.name.trim(),'Port-Alias']));
+  $('#dl-port').innerHTML=p.map(([v,l])=>'<option value="'+esc(v)+'" label="'+esc(l)+'">').join('');
+}
+function refreshIssues(){
+  S.aliasMap=new Map();S.data.alias.items.filter(a=>!a.deleted&&a.name.trim()).forEach(a=>S.aliasMap.set(a.name.trim(),{name:a.name.trim(),type:a.type}));
+  S.issues=new Map();ORDER.forEach(k=>MODS[k].validate(S.data[k].items,S.issues));
+}
+function refresh(){
+  refreshIssues();
+  const C={};let tot={add:0,upd:0,del:0,err:0};
+  ORDER.forEach(k=>{const m=MODS[k];const c={add:0,upd:0,del:0,err:0,warn:0};
+    S.data[k].items.forEach(it=>{if(it.deleted){if(!it.isNew)c.del++;return;}if(it.isNew)c.add++;else if(isChanged(m,it))c.upd++;const is=S.issues.get(it.id)||[];if(is.some(i=>i.lvl==='err'))c.err++;else if(is.length)c.warn++;});
+    C[k]=c;['add','upd','del','err'].forEach(x=>tot[x]+=c[x]);
+    const dot=$('[data-dot="'+k+'"]');if(dot)dot.hidden=!(c.add+c.upd+c.del);});
+  const m=mod();
+  $$('#tbody tr').forEach(tr=>{
+    const it=dat().items.find(x=>x.id==tr.dataset.id);if(!it)return;
+    const is=it.deleted?[]:(S.issues.get(it.id)||[]);
+    tr.dataset.change=it.deleted?'del':it.isNew?'new':isChanged(m,it)?'chg':'';
+    tr.dataset.off=it.enabled===false?'1':'';
+    let h='';
+    if(it.deleted)h='<span class="l">Wird beim Speichern entfernt</span>';
+    else if(it.locked)h='<span class="l">Systemalias, nur lesbar</span>';
+    else{is.forEach(i=>{h+='<span class="l '+i.lvl+'">'+esc(i.m)+'</span>';});if(!is.length&&it.isNew)h='<span class="l new">Neu</span>';else if(!is.length&&isChanged(m,it))h='<span class="l chg">'+(it.moved&&!m.fields.some(k=>norm(it[k])!==norm(it.orig[k]))?'Verschoben':'Geändert')+'</span>';}
+    tr.querySelector('.st').innerHTML=h;
+    $$('[data-derived]',tr).forEach(d=>{const c=S.cols.find(x=>x.k===d.dataset.derived);if(c)d.textContent=c.get(it);});
+  });
+  S.counts=tot;S.countsBy=C;
+  const bar=$('#savebar');const total=tot.add+tot.upd+tot.del;
+  if(!total&&!S.unsaved){bar.hidden=true;S.confirmErr=false;return;}
+  bar.hidden=false;
+  let s='';
+  if(total){s=ORDER.filter(k=>C[k].add+C[k].upd+C[k].del).map(k=>{const c=C[k];const p=[];if(c.add)p.push(c.add+' neu');if(c.upd)p.push(c.upd+' geändert');if(c.del)p.push(c.del+' entfernt');return MODS[k].short+': '+p.join(', ');}).join('<br>');}
+  else s='Änderungen übernommen, Datei noch nicht gespeichert';
+  if(tot.err)s+='<br><span class="e">'+tot.err+' Eintr'+(tot.err===1?'ag hat':'äge haben')+' Fehler</span>';
+  if(S.confirmErr&&tot.err)s+='<br><span class="e">Die Firewall übernimmt fehlerhafte Einträge eventuell trotzdem. Nochmal klicken, um dennoch zu speichern.</span>';
+  $('#saveSum').innerHTML=s;
+  $('#saveBtn').textContent=(S.confirmErr&&tot.err)?'Trotzdem speichern':'Speichern';
+  $('#discardBtn').hidden=!total;
+}
+
+/* ================= table events ================= */
+const itemOf=el=>{const tr=el.closest('tr');return tr?dat().items.find(x=>x.id==tr.dataset.id):null;};
+$('#tbody').addEventListener('input',ev=>{const t=ev.target,f=t.dataset.f;if(!f||t.type==='checkbox'||t.tagName==='SELECT')return;const it=itemOf(t);if(!it)return;it[f]=t.value;S.confirmErr=false;refresh();});
+$('#tbody').addEventListener('change',ev=>{const t=ev.target,f=t.dataset.f;if(!f)return;const it=itemOf(t);if(!it)return;
+  if(t.type==='checkbox')it[f]=t.checked;else if(t.tagName==='SELECT')it[f]=t.value;else return;
+  S.confirmErr=false;const m=mod();if(m.rerenderOn&&m.rerenderOn.includes(f)){renderOverview();render();}else refresh();});
+$('#tbody').addEventListener('focusout',ev=>{const t=ev.target,f=t.dataset.f;const m=mod();if(!f||!m.onBlur)return;const it=itemOf(t);if(!it||it.deleted)return;
+  const upd=m.onBlur(it,f);if(!upd.length)return;const tr=t.closest('tr');upd.forEach(k=>{const el=tr.querySelector('[data-f="'+k+'"]');if(!el)return;if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===it[k])){el.closest('td').innerHTML=cellHtml(S.cols.find(c=>c.k===k),it);}else el.value=it[k];});refresh();});
+$('#tbody').addEventListener('click',ev=>{
+  const b=ev.target.closest('[data-act]');if(!b)return;const it=itemOf(b);if(!it)return;const m=mod();
+  if(b.dataset.act==='del'){if(it.isNew&&!it.deleted)dat().items=dat().items.filter(x=>x!==it);else it.deleted=!it.deleted;S.confirmErr=false;renderTabs();renderOverview();render();return;}
+  if(b.dataset.act==='up'||b.dataset.act==='down'){m.move(it,b.dataset.act==='up'?-1:1);render();const nb=$('#tbody tr[data-id="'+it.id+'"] [data-act="'+b.dataset.act+'"]');if(nb&&!nb.disabled)nb.focus();}
+});
+$('#thead').addEventListener('click',ev=>{const th=ev.target.closest('[data-sort]');if(!th)return;const v=view();const k=th.dataset.sort;if(v.sort.key===k)v.sort.dir*=-1;else v.sort={key:k,dir:1};render();});
+$('#tabs').addEventListener('click',ev=>{const b=ev.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;closeImport();const v=view();$('#q').value=v.q;$('#fIssues').checked=v.issues;renderAll();});
+$('#overview').addEventListener('click',ev=>{const b=ev.target.closest('[data-g]');if(!b)return;const v=view();v.group=b.dataset.g;v.sub='all';renderOverview();renderSub();render();});
+$('#q').addEventListener('input',ev=>{view().q=ev.target.value;render();});
+$('#fSub').addEventListener('change',ev=>{view().sub=ev.target.value;render();});
+$('#fIssues').addEventListener('change',ev=>{view().issues=ev.target.checked;render();});
+function addEntry(){
+  const m=mod(),v=view();const f=m.newItem(v);if(!f)return;
+  const it=newIt(m,f);dat().items.push(it);
+  v.q='';$('#q').value='';v.issues=false;$('#fIssues').checked=false;
+  if(v.group!=='all'&&m.groupOf(it)!==v.group)v.group='all';
+  renderTabs();renderOverview();render();
+  const tr=$('#tbody tr[data-id="'+it.id+'"]');if(tr){tr.scrollIntoView({block:'nearest'});const inp=tr.querySelector('input.in:not([disabled])');if(inp)inp.focus();}
+}
+$('#addBtn').addEventListener('click',addEntry);
+$('#empty').addEventListener('click',ev=>{const b=ev.target.closest('[data-empty]');if(!b)return;if(b.dataset.empty==='add')addEntry();else openImport();});
+
+/* ================= commit & save ================= */
+function applyRenames(){
+  const ren=ALIAS.renames();if(!ren.length)return;
+  const map=new Map(ren);
+  const sw=t=>{const s=String(t||'');const neg=s.trim().startsWith('!');const v=neg?s.trim().slice(1).trim():s.trim();return map.has(v)?(neg?'!':'')+map.get(v):t;};
+  S.data.rule.items.forEach(r=>{['src','dst','sport','dport'].forEach(k=>{r[k]=sw(r[k]);});});
+  S.data.alias.items.forEach(a=>{const t=toks(a.content);if(t.some(x=>map.has(x)))a.content=t.map(x=>map.get(x)||x).join(' ');});
+  $$('nat address, nat port, nat local-port, nat target, nat network, nat dstport, nat srcport',S.root).forEach(el=>{if(kids(el).length)return;const v=el.textContent.trim();const neg=v.startsWith('!');const b=neg?v.slice(1):v;if(map.has(b)){const hadC=[...el.childNodes].some(n=>n.nodeType===4);while(el.firstChild)el.removeChild(el.firstChild);const nv=(neg?'!':'')+map.get(b);el.appendChild(hadC?S.doc.createCDATASection(nv):S.doc.createTextNode(nv));}});
+}
+function commit(){
+  const tot={add:0,upd:0,del:0};
+  applyRenames();
+  ORDER.forEach(k=>{
+    const m=MODS[k],D=S.data[k];
+    D.items.forEach(it=>{
+      if(it.deleted){if(it.node){removeEl(it.node);tot.del++;}return;}
+      if(it.isNew){m.create(it);tot.add++;return;}
+      if(isChanged(m,it)){m.write(it,false);tot.upd++;}
+    });
+    D.items=D.items.filter(it=>!it.deleted);
+    if(m.after)m.after();
+    D.items.forEach(it=>{it.isNew=false;it.moved=false;it.orig=snap(m,it);});
+  });
+  const rev=kid(S.root,'revision');
+  if(rev&&(tot.add||tot.upd||tot.del)){setTxt(rev,'time',String(Math.floor(Date.now()/1000)));setTxt(rev,'description','Config-Editor: '+tot.add+' neu, '+tot.upd+' geändert, '+tot.del+' entfernt');}
+  let out=serialize(S.doc);if(!/^\s*<\?xml/.test(out))out=S.decl+'\n'+out;if(!out.endsWith('\n'))out+='\n';
+  S.lastXml=out;S.baseText=out;
+  return tot;
+}
+function areaXml(area){const sec=kid(S.root,area);if(!sec)return null;return S.decl+'\n'+serialize(sec)+'\n';}
+function outName(suffix,ext){const b=S.fileName.replace(/\.(xml|txt)$/i,'').replace(/\.xml$/i,'');return b+'-'+suffix+ext;}
+async function offerFile(name,data,mime){
+  let api=null;const hasClaude=!!(window.claude&&typeof window.claude.use==='function');
+  if(hasClaude){try{api=await window.claude.use('downloads');}catch(_){api=null;}}
+  if(api){
+    try{await api.save({filename:name,data});return {ok:true,name};}
+    catch(err){const code=err&&err.code;
+      if(code==='rejected_extension'&&/\.xml$/i.test(name)){try{await api.save({filename:name+'.txt',data});return {ok:true,name:name+'.txt',renamed:true};}catch(e2){return {ok:false,code:e2&&e2.code};}}
+      return {ok:false,code};}
+  }
+  if(hasClaude)return {ok:false,code:'unavailable'};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:mime}));a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
+  return {ok:true,name};
+}
+function failMsg(code){if(code==='declined')return 'Speichern abgebrochen.';if(code==='rate_limited')return 'Es ist schon ein Speicherdialog offen.';return 'Speichern ist in dieser Ansicht nicht möglich. Nutze „XML in die Zwischenablage kopieren“.';}
+const pending=()=>{const c=S.counts||{};return (c.add||0)+(c.upd||0)+(c.del||0);};
+$('#saveBtn').addEventListener('click',async()=>{
+  const c=S.counts||{};
+  if(c.err&&!S.confirmErr){S.confirmErr=true;refresh();return;}
+  S.confirmErr=false;
+  if(pending()){commit();renderAll();}
+  if(!S.lastXml)S.lastXml=S.baseText;
+  const area=$('#saveWhat').value;
+  let data=S.lastXml,name=outName('bearbeitet','.xml');
+  if(area!=='full'){data=areaXml(area);if(!data){toast('Diesen Bereich gibt es in der Datei nicht.');return;}name=outName(area,'.xml');}
+  else S.unsaved=true;
+  refresh();
+  const r=await offerFile(name,data,'application/xml');
+  if(r.ok){if(area==='full')S.unsaved=false;refresh();toast(r.renamed?'Gespeichert als '+r.name+'. Vor dem Einspielen die Endung .txt entfernen.':'Gespeichert als '+r.name+'.');}
+  else toast(failMsg(r.code));
+});
+$('#discardBtn').addEventListener('click',()=>{
+  if(!pending())return;const b=$('#discardBtn');
+  if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='Wirklich verwerfen?';setTimeout(()=>{b.dataset.armed='';b.textContent='Verwerfen';},4000);return;}
+  b.dataset.armed='';b.textContent='Verwerfen';
+  const un=S.unsaved;loadText(S.baseText);S.unsaved=un;refresh();toast('Änderungen verworfen.');
+});
+$('#copyBtn').addEventListener('click',async()=>{
+  if(pending()){commit();renderAll();}
+  const area=$('#saveWhat').value;const xml=area==='full'?(S.lastXml||S.baseText):areaXml(area);
+  try{await navigator.clipboard.writeText(xml);toast('XML kopiert. In eine Textdatei einfügen und als .xml speichern.');}catch(_){toast('Kopieren wurde vom Browser blockiert.');}
+});
+function csvCell(v){v=String(v==null?'':v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+$('#csvBtn').addEventListener('click',async()=>{
+  const m=mod(),v=view();
+  let items=dat().items.filter(it=>!it.deleted&&!it.locked&&(v.group==='all'||m.groupOf(it)===v.group));
+  if(m.fixedOrder)items.sort((a,b)=>a.ord-b.ord);
+  const rows=[m.csv.head].concat(items.map(m.csv.row));
+  const csv='\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n';
+  const r=await offerFile(outName(m.key+(v.group!=='all'?'-'+v.group:''),'.csv'),csv,'text/csv');
+  toast(r.ok?items.length+' '+m.many+' als CSV gespeichert. Bearbeitet lässt sich die Datei über „Importieren“ wieder einlesen.':failMsg(r.code));
+});
+
+/* ================= import ================= */
+const IMP={src:'paste',cfg:null,preview:[],override:new Map(),texts:{},pm:{},o:{},extraMsg:''};
+const impO=()=>(IMP.o[S.tab]=IMP.o[S.tab]||{});
+function openImport(){
+  const m=mod();$('#imp').hidden=false;$('#impTitle').textContent=m.label+' importieren';
+  $('#tabConvert').hidden=!(m.canConvert&&m.canConvert());
+  if(IMP.src==='convert'&&$('#tabConvert').hidden)IMP.src='paste';
+  setSrc(IMP.src);
+  $('#impPasteHint').textContent=m.pasteHint;$('#impText').placeholder=m.placeholder;$('#impText').value=IMP.texts[S.tab]||'';
+  m.renderImpOpts($('#impOpts'),IMP.src);parsePaste();buildPreview();
+  $('#imp').scrollIntoView({block:'start',behavior:'smooth'});
+}
+function closeImport(){$('#imp').hidden=true;}
+$('#impBtn').addEventListener('click',()=>{if($('#imp').hidden)openImport();else closeImport();});
+$('#impClose').addEventListener('click',closeImport);
+function setSrc(src){IMP.src=src;IMP.override.clear();$$('#impTabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.src===src)));$$('#imp [data-pane]').forEach(p=>p.hidden=p.dataset.pane!==src);}
+$('#impTabs').addEventListener('click',ev=>{const b=ev.target.closest('button[data-src]');if(!b)return;setSrc(b.dataset.src);mod().renderImpOpts($('#impOpts'),IMP.src);buildPreview();});
+$('#impOpts').addEventListener('change',ev=>{const t=ev.target.closest('[data-o]');if(!t)return;const o=impO();o[t.dataset.o]=t.type==='checkbox'?t.checked:t.value;IMP.override.clear();if(mod().onImpOpt(t.dataset.o))mod().renderImpOpts($('#impOpts'),IMP.src);buildPreview();});
+let tmr=null;
+$('#impText').addEventListener('input',()=>{IMP.texts[S.tab]=$('#impText').value;clearTimeout(tmr);tmr=setTimeout(()=>{IMP.override.clear();parsePaste();buildPreview();},200);});
+$('#impFile').addEventListener('change',async ev=>{const f=ev.target.files[0];ev.target.value='';if(!f)return;const t=await f.text();$('#impText').value=t;IMP.texts[S.tab]=t;delete IMP.pm[S.tab];IMP.override.clear();parsePaste();buildPreview();});
+$('#impCfg').addEventListener('change',async ev=>{
+  const f=ev.target.files[0];ev.target.value='';if(!f)return;const info=$('#impCfgInfo');
+  try{IMP.cfg=parseConfig(await f.text());IMP.o={};IMP.override.clear();const C=IMP.cfg.data;
+    info.className='note';info.textContent=f.name+' ('+(IMP.cfg.type==='pfsense'?'pfSense':'OPNsense')+'): '+C.dhcp.items.length+' Reservierungen, '+C.alias.items.filter(a=>!a.locked).length+' Aliase, '+C.rule.items.length+' Regeln';}
+  catch(err){IMP.cfg=null;info.className='note err';info.textContent=err.message;}
+  mod().renderImpOpts($('#impOpts'),IMP.src);buildPreview();
+});
+function splitLine(line,d){
+  if(d===' ')return line.trim().split(/\s+/);
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];
+    if(q){if(ch==='"'){if(line[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}
+    else if(ch==='"')q=true;else if(ch===d){out.push(cur);cur='';}else cur+=ch;}
+  out.push(cur);return out.map(s=>s.trim());
+}
+function parsePaste(){
+  const m=mod();const text=($('#impText').value||'').replace(/^\ufeff/,'');
+  const lines=text.split(/\r?\n/).filter(l=>l.trim()&&!/^\s*#/.test(l));
+  const prev=IMP.pm[S.tab];
+  if(!lines.length){IMP.pm[S.tab]={table:null,mapping:[],touched:prev&&prev.touched};renderMapping();return;}
+  const sample=lines.slice(0,10);let d=' ',best=0;
+  ['\t',';',','].forEach(c=>{const n=Math.min(...sample.map(l=>l.split(c).length-1));if(n>best){best=n;d=c;}});
+  if(d===' '&&S.tab!=='dhcp')d=lines[0].includes('\t')?'\t':';';
+  const table=lines.map(l=>splitLine(l,d));const ncol=Math.max(...table.map(r=>r.length));
+  const first=table[0];const hk=first.map(h=>m.headerKey(h));
+  let header=false,mapping;
+  const looksData=first.some(v=>normMac(v)||isV4(v));
+  if(hk.filter(Boolean).length>=2&&!looksData){header=true;mapping=hk.concat(new Array(Math.max(0,ncol-hk.length)).fill(''));}
+  else mapping=m.autoMap(table,ncol);
+  if(prev&&prev.touched&&prev.mapping.length===ncol&&prev.header===header)mapping=prev.mapping;
+  IMP.pm[S.tab]={table:header?table.slice(1):table,header,headRow:header?first:null,mapping,touched:prev&&prev.touched&&prev.mapping.length===ncol};
+  renderMapping();
+}
+function renderMapping(){
+  const box=$('#impMap');const P=IMP.pm[S.tab];
+  if(!P||!P.table||!P.table.length){box.innerHTML='';return;}
+  const opts=[['','nicht verwenden']].concat(mod().impFields);
+  box.innerHTML=P.mapping.map((m,i)=>{const s=(P.headRow&&P.headRow[i])||(P.table[0][i]||'');return '<label>Spalte '+(i+1)+'<code title="'+esc(s)+'">'+esc(s||'leer')+'</code><select data-col="'+i+'">'+opts.map(([v,l])=>'<option value="'+v+'"'+(v===m?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';}).join('');
+}
+$('#impMap').addEventListener('change',ev=>{const s=ev.target.closest('select[data-col]');if(!s)return;const P=IMP.pm[S.tab];P.mapping[+s.dataset.col]=s.value;P.touched=true;IMP.override.clear();buildPreview();});
+function importRows(){
+  const m=mod();
+  if(IMP.src==='paste'){const P=IMP.pm[S.tab];if(!P||!P.table)return [];
+    return P.table.map(r=>{const o={};m.impFields.forEach(([k])=>{const i=P.mapping.indexOf(k);o[k]=i>=0?(r[i]||''):'';});return o;}).filter(o=>Object.values(o).some(v=>String(v).trim()));}
+  if(IMP.src==='config')return IMP.cfg?m.rowsFromConfig(IMP.cfg):[];
+  return m.rowsFromConvert?m.rowsFromConvert():[];
+}
+function buildPreview(){
+  if($('#imp').hidden)return;
+  refreshIssues();
+  const rows=importRows();IMP.preview=mod().preview(rows,IMP.src);
+  IMP.preview.forEach((p,i)=>{p.checked=IMP.override.has(i)?IMP.override.get(i):(p.status==='new'||p.status==='upd');if(p.status==='err'||p.status==='skip')p.checked=false;});
+  renderPreview();
+}
+function renderPreview(){
+  const wrap=$('#impPrevWrap'),tbl=$('#impPrev'),P=IMP.preview;
+  if(!P.length){wrap.hidden=true;$('#impSum').textContent=IMP.src==='config'&&!IMP.cfg?'Noch keine zweite Datei geladen.':'Noch nichts zum Importieren.';$('#impApply').disabled=true;$('#impApply').textContent='Übernehmen';return;}
+  wrap.hidden=false;
+  const lbl={new:'Neu',upd:'Aktualisieren',skip:'Überspringen',err:'Fehler'};
+  tbl.innerHTML='<thead><tr><th style="width:36px"></th><th>Status</th>'+mod().previewHead().map(h=>'<th>'+esc(h)+'</th>').join('')+'<th>Hinweis</th></tr></thead><tbody>'+
+    P.map((p,i)=>'<tr class="'+p.status+'"><td><input type="checkbox" class="ck" data-i="'+i+'"'+(p.checked?' checked':'')+(p.status==='err'||p.status==='skip'?' disabled':'')+' aria-label="Zeile übernehmen"></td><td><span class="pill '+p.status+'">'+lbl[p.status]+'</span></td>'+p.cells.map(([v,c])=>'<td'+(c?' class="'+c+'"':'')+' title="'+esc(v)+'">'+esc(v)+'</td>').join('')+'<td class="note'+(p.status==='err'?' err':'')+'">'+esc(p.notes.join(', '))+'</td></tr>').join('')+'</tbody>';
+  const k={new:0,upd:0,skip:0,err:0};P.forEach(p=>k[p.status]++);const n=P.filter(p=>p.checked).length;
+  const parts=[];if(k.new)parts.push(k.new+' neu');if(k.upd)parts.push(k.upd+' zu aktualisieren');if(k.skip)parts.push(k.skip+' übersprungen');if(k.err)parts.push(k.err+' mit Fehlern');
+  $('#impSum').textContent=P.length+' Zeilen: '+parts.join(', ');
+  const b=$('#impApply');b.disabled=!n;b.textContent=n?n+' übernehmen':'Übernehmen';
+}
+$('#impPrev').addEventListener('change',ev=>{const c=ev.target.closest('input[data-i]');if(!c)return;const i=+c.dataset.i;IMP.override.set(i,c.checked);IMP.preview[i].checked=c.checked;renderPreview();});
+$('#impApply').addEventListener('click',()=>{
+  const m=mod();const list=IMP.preview.filter(p=>p.checked);if(!list.length)return;
+  IMP.extraMsg='';const n=m.apply(list,IMP.src);
+  S.confirmErr=false;const v=view();v.q='';$('#q').value='';
+  if(IMP.src==='paste'){IMP.texts[S.tab]='';$('#impText').value='';delete IMP.pm[S.tab];renderMapping();}
+  IMP.override.clear();closeImport();renderAll();
+  toast(n+' '+(n===1?m.one:m.many)+' übernommen.'+IMP.extraMsg+' Mit „Speichern“ wird die Datei erzeugt.');
+});
+
+/* ================= loading ================= */
+$('#file1').addEventListener('change',ev=>{const f=ev.target.files[0];ev.target.value='';if(f)openFile(f);});
+$('#file2').addEventListener('change',ev=>{const f=ev.target.files[0];ev.target.value='';if(f)openFile(f);});
+$('#pasteCfgBtn').addEventListener('click',()=>{const t=$('#pasteCfg').value;if(!t.trim())return;try{loadText(t,'config.xml');}catch(err){const b=$('#loadErr');b.textContent=err.message;b.hidden=false;}});
+const drop=$('#drop');
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,ev=>{ev.preventDefault();if(!$('#start').hidden)drop.classList.add('over');}));
+document.addEventListener('dragleave',ev=>{if(ev.target===document.documentElement||ev.target===document.body)drop.classList.remove('over');});
+document.addEventListener('drop',ev=>{ev.preventDefault();drop.classList.remove('over');const f=ev.dataTransfer&&ev.dataTransfer.files[0];if(!f)return;
+  if(S&&!$('#imp').hidden&&IMP.src==='paste'&&/\.(csv|txt|tsv)$/i.test(f.name)){f.text().then(t=>{$('#impText').value=t;IMP.texts[S.tab]=t;delete IMP.pm[S.tab];IMP.override.clear();parsePaste();buildPreview();});return;}
+  openFile(f);});
+let toastT=null;
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,5500);}
+window.__cfgEditor={loadText,commit,get state(){return S;},get imp(){return IMP;}};
+})();
+</script>
+</body>
+</html>
