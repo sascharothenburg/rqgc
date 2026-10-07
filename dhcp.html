@@ -284,6 +284,8 @@ function inCidr(c,n){return !!c&&n!=null&&((n&c.mask)>>>0)===c.net;}
 function normMac(s){s=String(s||'').trim();if(!s||!/^[0-9a-fA-F:.\- ]+$/.test(s))return null;const h=s.toLowerCase().replace(/[^0-9a-f]/g,'');if(h.length!==12)return null;return h.match(/../g).join(':');}
 function cleanHost(h){return String(h||'').trim().replace(/[\s.]+/g,'-').replace(/[^A-Za-z0-9_-]/g,'').replace(/^-+|-+$/g,'').slice(0,63);}
 const HOST_RE=/^[A-Za-z0-9_]([A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$/;
+const UML_RE=/[äöüÄÖÜß]/;
+const fixUml=h=>String(h||'').replace(/[äöüÄÖÜß]/g,c=>({'ä':'ae','ö':'oe','ü':'ue','Ä':'Ae','Ö':'Oe','Ü':'Ue','ß':'ss'})[c]);
 const ALIAS_RE=/^[A-Za-z0-9_]+$/;
 const isV4=t=>ipToInt(t)!=null;
 const isV4Cidr=t=>{const i=t.indexOf('/');if(i<0)return false;const b=t.slice(i+1);return isV4(t.slice(0,i))&&/^\d+$/.test(b)&&+b<=32;};
@@ -454,7 +456,8 @@ const DHCP={
         }
       }
       const h=e.hostname.trim();
-      if(h&&!HOST_RE.test(h))E('Hostname: keine Leerzeichen, Punkte oder Sonderzeichen');
+      if(h&&UML_RE.test(h))W('Hostname: Umlaute als ae, oe, ue, ss schreiben, also '+fixUml(h));
+      else if(h&&!HOST_RE.test(h))W('Hostname: pfSense erlaubt nur a-z, 0-9, - und _ (kein - am Anfang/Ende, keine Punkte)');
       const ip=first(e);
       if(ip&&(byIp.get(e.backend+'|'+ip)||[]).length>1)E('IP doppelt vergeben');
       const m=normMac(e.mac);if(m&&(byMac.get(e.backend+'|'+(e.backend==='dnsmasq'?'':e.scope)+'|'+m)||[]).length>1)E('MAC doppelt eingetragen');
@@ -542,7 +545,7 @@ const DHCP={
       const macRaw=String(r.mac||'').trim();
       if(macRaw){p.mac=normMac(macRaw)||'';if(!p.mac)bad('MAC ungültig');}else if(target!=='dnsmasq')bad('MAC fehlt');
       const n=ipToInt(p.ip);if(n==null)bad(p.ip?'IP ungültig':'IP fehlt');
-      const h0=String(r.hostname||'').trim();p.host=(!h0||HOST_RE.test(h0))?h0:cleanHost(h0);if(h0&&p.host!==h0)p.notes.push('Hostname angepasst');
+      const h0=String(r.hostname||'').trim();p.host=fixUml(h0);if(p.host!==h0)p.notes.push('Umlaute ersetzt: '+p.host);else if(h0&&!HOST_RE.test(h0))p.notes.push('Hostname entspricht nicht den pfSense-Regeln');
       if(target!=='dnsmasq'&&n!=null){
         if(fixed==='auto'){p.scope=this.autoScope(target,p.ip);if(!p.scope)bad('Kein passendes Netz');}
         else{p.scope=fixed;const sc=(D.scopes[target]||[]).find(s=>s.id===fixed);if(sc&&sc.cidr&&!inCidr(sc.cidr,n))bad('Nicht im Netz '+sc.cidr.label);}
