@@ -217,7 +217,7 @@ footer.foot{color:var(--muted);font-size:.83rem;padding:24px 0 30px}
       <div data-pane="paste">
         <p class="hint" id="impPasteHint"></p>
         <textarea id="impText" spellcheck="false"></textarea>
-        <div class="row"><label class="btn">CSV- oder Textdatei wählen<input type="file" id="impFile" accept=".csv,.txt,.tsv,text/*" hidden></label></div>
+        <div class="row"><label class="btn">Datei wählen<input type="file" id="impFile" hidden></label></div>
         <div class="mapping" id="impMap"></div>
       </div>
       <div data-pane="config" hidden>
@@ -363,6 +363,58 @@ const ifLabel=k=>ifLabelIn(S,k);
 function sel(key,label,opts,val){return '<label class="f">'+esc(label)+'<select data-o="'+esc(key)+'">'+opts.map(([v,l])=>'<option value="'+esc(v)+'"'+(String(v)===String(val)?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';}
 function chk(key,label,val){return '<label class="chk"><input type="checkbox" data-o="'+esc(key)+'"'+(val?' checked':'')+'> '+esc(label)+'</label>';}
 
+/* ================= Fremdformate (DHCP) ================= */
+const MAC_TOK=/^([0-9a-f]{2}[:\-]){5}[0-9a-f]{2}$/i;
+function unq(v){v=String(v==null?'':v).trim().replace(/;$/,'').trim();if(/^(['"]).*\1$/.test(v))v=v.slice(1,-1);return v;}
+const FMT={
+  isc:{label:'ISC dhcpd.conf',test:t=>/host\s+[^\s{]+\s*\{[^}]*hardware\s+ethernet/i.test(t),
+    parse(t){const out=[];const re=/host\s+([^\s{]+)\s*\{([^}]*)\}/gi;let m;
+      while((m=re.exec(t))){const b=m[2];const mac=(/hardware\s+ethernet\s+([0-9a-f:\-]+)/i.exec(b)||[])[1]||'';const ip=(/fixed-address\s+([^;\s]+)/i.exec(b)||[])[1]||'';
+        const hn=unq((/option\s+host-name\s+([^;]+)/i.exec(b)||[])[1]||'')||unq(m[1]);out.push({mac,ip,hostname:hn,descr:''});}
+      return out;}},
+  uci:{label:'OpenWrt',test:t=>/^\s*config\s+host\b/m.test(t)||/^\s*dhcp\.[@\w\[\]-]+=host\s*$/m.test(t),
+    parse(t){const out=[];
+      if(/^\s*dhcp\.[@\w\[\]-]+=host\s*$/m.test(t)){const sec=new Map();
+        t.split(/\r?\n/).forEach(l=>{let m=/^\s*dhcp\.([@\w\[\]-]+)=host\s*$/.exec(l);if(m){sec.set(m[1],{});return;}
+          m=/^\s*dhcp\.([@\w\[\]-]+)\.(\w+)=(.*)$/.exec(l);if(m&&sec.has(m[1]))sec.get(m[1])[m[2]]=m[3].trim();});
+        sec.forEach(o=>out.push(FMT.uci.row(o,s=>s.split(/'\s+'|\s+/).map(unq))));
+      }else{
+        t.split(/^\s*config\s+/m).forEach(b=>{if(!/^host\b/.test(b))return;const o={};
+          b.split(/\r?\n/).slice(1).forEach(l=>{const m=/^\s*(option|list)\s+(\w+)\s+(.+)$/.exec(l);if(!m)return;const v=unq(m[3]);
+            if(m[1]==='list'||o[m[2]]!==undefined&&m[2]==='mac')o[m[2]]=(o[m[2]]?o[m[2]]+' ':'')+v;else o[m[2]]=v;});
+          out.push(FMT.uci.row(o,x=>x.split(/\s+/)));});
+      }
+      return out;},
+    row(o,split){const macs=split(unq(o.mac||'')).map(unq).filter(Boolean);const r={mac:macs[0]||'',ip:unq(o.ip||''),hostname:unq(o.name||''),descr:''};
+      if(macs.length>1)r.note='Mehrere MAC-Adressen, erste verwendet';return r;}},
+  toml:{label:'Pi-hole v6 (pihole.toml)',test:t=>/^\s*hosts\s*=\s*\[/m.test(t)&&/\[dhcp\]/i.test(t),
+    parse(t){const m=/\[dhcp\][\s\S]*?^\s*hosts\s*=\s*\[([\s\S]*?)\]/m.exec(t);if(!m)return [];
+      return (m[1].match(/"[^"]*"|'[^']*'/g)||[]).map(x=>FMT.dnsmasq.entry(x.slice(1,-1))).filter(Boolean);}},
+  dnsmasq:{label:'Pi-hole / dnsmasq (dhcp-host)',test:t=>/^\s*dhcp-host\s*=/m.test(t),
+    parse(t){return t.split(/\r?\n/).map(l=>{const m=/^\s*dhcp-host\s*=\s*(.+)$/.exec(l);return m?FMT.dnsmasq.entry(m[1]):null;}).filter(Boolean);},
+    entry(v){const r={mac:'',ip:'',hostname:'',descr:''};const macs=[];
+      v.split(',').map(x=>x.trim()).filter(Boolean).forEach(tk=>{
+        if(MAC_TOK.test(tk))macs.push(tk);else if(isV4(tk))r.ip=tk;
+        else if(/^(set|tag|id):/i.test(tk)||/^(infinite|ignore)$/i.test(tk)||/^\d+[smhdw]?$/i.test(tk)||tk.startsWith('['))return;
+        else if(!r.hostname)r.hostname=tk;});
+      r.mac=macs[0]||'';if(macs.length>1)r.note='Mehrere MAC-Adressen, erste verwendet';
+      return (r.mac||r.ip)?r:null;}},
+  ddwrt:{label:'DD-WRT (static_leases)',test:t=>/([0-9a-f]{2}:){5}[0-9a-f]{2}=[^=\s]*=\d{1,3}(\.\d{1,3}){3}/i.test(t),
+    parse(t){const out=[];const re=/(([0-9a-f]{2}:){5}[0-9a-f]{2})=([^=\s]*)=(\d{1,3}(?:\.\d{1,3}){3})(?:=\S*)?/gi;let m;
+      while((m=re.exec(t)))out.push({mac:m[1],ip:m[4],hostname:m[3],descr:''});return out;}},
+  fritz:{label:'FRITZ!Box-Export',test:t=>/landevice/i.test(t)||/FRITZ!Box/i.test(t)&&/\bmac\s*=/.test(t),
+    parse(t){const out=[];let anyStatic=false;const blocks=[];
+      (t.match(/\{[^{}]*\}/g)||[]).forEach(b=>{const o={};b.slice(1,-1).split(/;\s*/).forEach(l=>{const m=/^\s*([\w-]+)\s*=\s*([\s\S]*)$/.exec(l);if(m)o[m[1].toLowerCase()]=unq(m[2]);});
+        if(o.mac&&o.ip&&isV4(o.ip)){blocks.push(o);if(Object.keys(o).some(k=>/static|fixed/.test(k)))anyStatic=true;}});
+      blocks.forEach(o=>{const sk=Object.keys(o).filter(k=>/static|fixed/.test(k));const isStatic=sk.some(k=>/^(yes|1|true|on)$/i.test(o[k]));
+        if(anyStatic&&!isStatic)return;
+        const r={mac:o.mac,ip:o.ip,hostname:o.name||o.hostname||'',descr:o.name&&o.name!==(o.hostname||o.name)?o.name:''};
+        if(!anyStatic){r.note='Ob fest zugewiesen, ist nicht erkennbar';r.uncheck=true;}
+        out.push(r);});
+      return out;}}
+};
+function detectFormat(text){for(const k of ['isc','uci','toml','dnsmasq','ddwrt','fritz']){const f=FMT[k];if(f.test(text)){const rows=f.parse(text);if(rows.length)return {fmt:k,label:f.label,rows};}}return null;}
+
 /* ================= DHCP ================= */
 const DHCP={
   key:'dhcp',label:'DHCP-Reservierungen',short:'DHCP',one:'Reservierung',many:'Reservierungen',
@@ -497,7 +549,7 @@ const DHCP={
   csv:{head:['Dienst','Netz','MAC','IP','Hostname','Beschreibung'],row(it){const s=DHCP.scopeFor(it);return [DHCP.D().backends[it.backend].label,s?s.short:'',it.mac,it.ip,it.hostname,it.descr];}},
   /* import */
   impFields:[['mac','MAC-Adresse'],['ip','IP-Adresse'],['hostname','Hostname'],['descr','Beschreibung']],
-  pasteHint:'Eine Zeile pro Gerät, etwa aus Excel kopiert oder als CSV. Trennzeichen und Spalten werden erkannt. MAC-Adressen dürfen in jeder üblichen Schreibweise vorliegen.',
+  pasteHint:'Eine Zeile pro Gerät, etwa aus Excel kopiert oder als CSV. Außerdem werden automatisch erkannt: OpenWrt (/etc/config/dhcp oder „uci show dhcp“), Pi-hole und dnsmasq (dhcp-host-Zeilen oder pihole.toml), DD-WRT (static_leases), FRITZ!Box-Export und ISC dhcpd.conf. Einfach Text einfügen oder Datei wählen.',detect:true,
   placeholder:'MAC;IP;Hostname;Beschreibung\naa:bb:cc:dd:ee:01;192.168.1.50;drucker-buero;Drucker Büro\nAA-BB-CC-DD-EE-02;192.168.1.51;nas;Synology',
   headerKey(h){h=h.toLowerCase().trim();
     if(/mac|hw.?addr|hardware/.test(h))return 'mac';
@@ -545,7 +597,7 @@ const DHCP={
       const macRaw=String(r.mac||'').trim();
       if(macRaw){p.mac=normMac(macRaw)||'';if(!p.mac)bad('MAC ungültig');}else if(target!=='dnsmasq')bad('MAC fehlt');
       const n=ipToInt(p.ip);if(n==null)bad(p.ip?'IP ungültig':'IP fehlt');
-      const h0=String(r.hostname||'').trim();p.host=fixUml(h0);if(p.host!==h0)p.notes.push('Umlaute ersetzt: '+p.host);else if(h0&&!HOST_RE.test(h0))p.notes.push('Hostname entspricht nicht den pfSense-Regeln');
+      const h0=String(r.hostname||'').trim();p.host=fixUml(h0).replace(/\s+/g,'-');if(p.host!==h0){p.notes.push('Hostname angepasst: '+p.host);if(!p.descr)p.descr=h0;}else if(h0&&!HOST_RE.test(h0))p.notes.push('Hostname entspricht nicht den pfSense-Regeln');if(r.note)p.notes.push(r.note);
       if(target!=='dnsmasq'&&n!=null){
         if(fixed==='auto'){p.scope=this.autoScope(target,p.ip);if(!p.scope)bad('Kein passendes Netz');}
         else{p.scope=fixed;const sc=(D.scopes[target]||[]).find(s=>s.id===fixed);if(sc&&sc.cidr&&!inCidr(sc.cidr,n))bad('Nicht im Netz '+sc.cidr.label);}
@@ -1234,6 +1286,7 @@ function parsePaste(){
   const lines=text.split(/\r?\n/).filter(l=>l.trim()&&!/^\s*#/.test(l));
   const prev=IMP.pm[S.tab];
   if(!lines.length){IMP.pm[S.tab]={table:null,mapping:[],touched:prev&&prev.touched};renderMapping();return;}
+  if(m.detect){const d=detectFormat(text);if(d){IMP.pm[S.tab]={table:null,mapping:[],fmt:d};renderMapping();return;}}
   const sample=lines.slice(0,10);let d=' ',best=0;
   ['\t',';',','].forEach(c=>{const n=Math.min(...sample.map(l=>l.split(c).length-1));if(n>best){best=n;d=c;}});
   if(d===' '&&S.tab!=='dhcp')d=lines[0].includes('\t')?'\t':';';
@@ -1249,6 +1302,7 @@ function parsePaste(){
 }
 function renderMapping(){
   const box=$('#impMap');const P=IMP.pm[S.tab];
+  if(P&&P.fmt){box.innerHTML='<span class="note">Erkanntes Format: <b>'+esc(P.fmt.label)+'</b>, '+P.fmt.rows.length+' Einträge</span>';return;}
   if(!P||!P.table||!P.table.length){box.innerHTML='';return;}
   const opts=[['','nicht verwenden']].concat(mod().impFields);
   box.innerHTML=P.mapping.map((m,i)=>{const s=(P.headRow&&P.headRow[i])||(P.table[0][i]||'');return '<label>Spalte '+(i+1)+'<code title="'+esc(s)+'">'+esc(s||'leer')+'</code><select data-col="'+i+'">'+opts.map(([v,l])=>'<option value="'+v+'"'+(v===m?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';}).join('');
@@ -1256,7 +1310,7 @@ function renderMapping(){
 $('#impMap').addEventListener('change',ev=>{const s=ev.target.closest('select[data-col]');if(!s)return;const P=IMP.pm[S.tab];P.mapping[+s.dataset.col]=s.value;P.touched=true;IMP.override.clear();buildPreview();});
 function importRows(){
   const m=mod();
-  if(IMP.src==='paste'){const P=IMP.pm[S.tab];if(!P||!P.table)return [];
+  if(IMP.src==='paste'){const P=IMP.pm[S.tab];if(P&&P.fmt)return P.fmt.rows;if(!P||!P.table)return [];
     return P.table.map(r=>{const o={};m.impFields.forEach(([k])=>{const i=P.mapping.indexOf(k);o[k]=i>=0?(r[i]||''):'';});return o;}).filter(o=>Object.values(o).some(v=>String(v).trim()));}
   if(IMP.src==='config')return IMP.cfg?m.rowsFromConfig(IMP.cfg):[];
   return m.rowsFromConvert?m.rowsFromConvert():[];
@@ -1265,7 +1319,7 @@ function buildPreview(){
   if($('#imp').hidden)return;
   refreshIssues();
   const rows=importRows();IMP.preview=mod().preview(rows,IMP.src);
-  IMP.preview.forEach((p,i)=>{p.checked=IMP.override.has(i)?IMP.override.get(i):(p.status==='new'||p.status==='upd');if(p.status==='err'||p.status==='skip')p.checked=false;});
+  IMP.preview.forEach((p,i)=>{p.checked=IMP.override.has(i)?IMP.override.get(i):((p.status==='new'||p.status==='upd')&&!(p.r&&p.r.uncheck));if(p.status==='err'||p.status==='skip')p.checked=false;});
   renderPreview();
 }
 function renderPreview(){
@@ -1298,7 +1352,7 @@ const drop=$('#drop');
 ['dragenter','dragover'].forEach(t=>document.addEventListener(t,ev=>{ev.preventDefault();if(!$('#start').hidden)drop.classList.add('over');}));
 document.addEventListener('dragleave',ev=>{if(ev.target===document.documentElement||ev.target===document.body)drop.classList.remove('over');});
 document.addEventListener('drop',ev=>{ev.preventDefault();drop.classList.remove('over');const f=ev.dataTransfer&&ev.dataTransfer.files[0];if(!f)return;
-  if(S&&!$('#imp').hidden&&IMP.src==='paste'&&/\.(csv|txt|tsv)$/i.test(f.name)){f.text().then(t=>{$('#impText').value=t;IMP.texts[S.tab]=t;delete IMP.pm[S.tab];IMP.override.clear();parsePaste();buildPreview();});return;}
+  if(S&&!$('#imp').hidden&&IMP.src==='paste'&&!/\.xml$/i.test(f.name)){f.text().then(t=>{$('#impText').value=t;IMP.texts[S.tab]=t;delete IMP.pm[S.tab];IMP.override.clear();parsePaste();buildPreview();});return;}
   openFile(f);});
 let toastT=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,5500);}
